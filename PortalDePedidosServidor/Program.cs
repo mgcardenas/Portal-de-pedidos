@@ -1,5 +1,4 @@
-﻿
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,13 +6,18 @@ using Microsoft.IdentityModel.Tokens;
 using PortalDePedidosServidor;
 using PortalDePedidosServidor.Models;
 using PortalDePedidosServidor.ModelsDataWhereHouse;
-using PortalDePedidosServidor.ModelsJDE;
 using PortalDePedidosServidor.Servicios;
 using System.Net;
 using System.Text;
 using PortalDePedidosShared.EstadisticasVM;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using Microsoft.OpenApi.Models; // añadido para Swagger
+using System.IO;
+using Microsoft.AspNetCore.Diagnostics; // para UseExceptionHandler
+using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using PortalDePedidosServidor.ModelsJDE;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,13 +35,74 @@ builder.Services.AddCors(options =>
         });
 });
 
-
 // Add services to the container.
+// Añadimos configuración para respuestas de validación (ProblemDetails)
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 
+// Configurar respuesta para errores de validación y que sea application/problem+json
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var problemDetails = new ValidationProblemDetails(context.ModelState)
+        {
+            Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1",
+            Title = "One or more validation errors occurred.",
+            Status = StatusCodes.Status400BadRequest,
+            Instance = context.HttpContext.Request.Path
+        };
+
+        return new BadRequestObjectResult(problemDetails)
+        {
+            ContentTypes = { "application/problem+json" }
+        };
+    };
+});
+
+// Swagger / OpenAPI: añadir metadatos y seguridad Bearer (documentación y testing con JWT)
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    // Document info (puede leer versión desde configuración si se desea)
+    var versionMayor = builder.Configuration.GetConnectionString("VersionMayor") ?? "1";
+    var versionMenor = builder.Configuration.GetConnectionString("VersionMenor") ?? "0";
+    c.SwaggerDoc($"v{versionMayor}.{versionMenor}", new OpenApiInfo
+    {
+        Title = "PortalDePedidos API",
+        Version = $"v{versionMayor}.{versionMenor}",
+        Description = "API REST del Portal de Pedidos (Blazor WebAssembly cliente, .NET 8 servidor)"
+    });
+
+    // JWT Bearer definition to test endpoints desde Swagger UI
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Ingrese: 'Bearer {token}'",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement()
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            new string[] { }
+        }
+    });
+
+    // Incluir comentarios XML si existen (mejora documentación)
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+    {
+        c.IncludeXmlComments(xmlPath);
+    }
+});
 
 builder.Services.AddHttpClient();
 //Servicios
@@ -193,8 +258,37 @@ app.UseCors(MiCors);
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        // Mostrar el documento con la versión detectada en config (si aplica)
+        var version = $"v{versionMayor}.{versionMenor}";
+        c.SwaggerEndpoint($"/swagger/{version}/swagger.json", $"PortalDePedidos API {version}");
+        c.RoutePrefix = "swagger";
+    });
 }
+
+// Middleware global de manejo de excepciones que devuelve ProblemDetails (application/problem+json)
+app.UseExceptionHandler(errApp =>
+{
+    errApp.Run(async context =>
+    {
+        var exFeature = context.Features.Get<IExceptionHandlerFeature>();
+        var ex = exFeature?.Error;
+
+        var problemDetails = new ProblemDetails
+        {
+            Title = "An unexpected error occurred.",
+            Detail = ex?.Message,
+            Status = StatusCodes.Status500InternalServerError,
+            Type = "https://tools.ietf.org/html/rfc7231#section-6.6.1",
+            Instance = context.Request.Path
+        };
+
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/problem+json";
+        await context.Response.WriteAsJsonAsync(problemDetails);
+    });
+});
 
 app.UseHttpsRedirection();
 
@@ -218,8 +312,6 @@ app.Use(async (context, next) =>
 
     await next();
 });
-
-
 
 app.UseAuthentication();
 app.UseAuthorization();

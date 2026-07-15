@@ -4,6 +4,10 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Habilitar archivo XML para documentación (mejora Swagger) -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Evitar warnings por comentarios faltantes en público -->
+    <NoWarn>1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
