@@ -1,0 +1,150 @@
+﻿@* @page "/Registro" *@
+@using PortalDePedidosService
+@using PortalDePedidosShared.UsuariosVM
+@layout LogInLayout
+@inject UsuarioClienteService _usuarioService
+@inject DataWareHouseClienteService _dataWareHouseService
+@inject IJSRuntime js
+@inject NavigationManager navigation
+
+    <div class="register-box">
+        <div class="card card-outline card-primary">
+            <div class="card-header text-center">
+                <img class="brand-image-xl " src="/imagenes/logo/logo_empresa.png" />
+                <p>Portal de Pedidos</p>
+            </div>
+            <div class="card-body">
+                <p class="login-box-msg">Registrar un nuevo usuario</p>
+                    
+                <EditForm Model="usuario" OnValidSubmit="Guardar">
+                    <DataAnnotationsValidator />
+                    <div class="card-body">
+
+                        <div class="form-group">
+                            <label>Nombre de Usuario</label>
+                            @if (nombreUsuarioExiste)
+                            {
+                                <input class="form-control modified invalid" @bind="@usuario.NombreUsuario" />
+                                <div class="validation-message">El Nombre de Usuario Ya Existe.</div>
+                            }
+                            else
+                            {
+                                <InputText class="form-control" @bind-Value="@usuario.NombreUsuario"></InputText>
+                                <ValidationMessage For="(()=> usuario.NombreUsuario)" />
+                            }
+                        </div>
+
+                    <div class="form-group">
+                        <label>Nro. de Cliente en JDE</label>
+                        @if (nroJDENoExiste)
+                        {
+                            <input class="form-control modified invalid" @bind="@usuario.NroClienteJDE" />
+                            <div class="validation-message">No es un nro de cliente válido.</div>
+                        }
+                        else
+                        {
+                            <InputNumber class="form-control" @bind-Value="@usuario.NroClienteJDE"></InputNumber>
+                        }
+                    </div>
+
+                        @* <div class="form-group">
+                            <label>Nro. de Cliente en JDE</label>
+                            <InputSelect class="form-control" @bind-Value="@usuario.NroClienteJDE">
+                                <option value="">Seleccione un Nro. de Cliente</option>
+                                @foreach (var razon in razonSociales)
+                                {
+                                    <option value="@razon.CodLibroDireccion">@razon.CodLibroDireccion - @razon.RazonSocial</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="(()=> usuario.NroClienteJDE)" />
+                        </div> *@
+
+                        <div class="form-group">
+                            <label>Mail del Usuario</label>
+                            <InputText class="form-control" @bind-Value="@usuario.MailUsuario"></InputText>
+                            <ValidationMessage For="(()=> usuario.MailUsuario)" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Contraseña</label>
+                            <InputText class="form-control" type="password" @bind-Value="@usuario.Contrasena"></InputText>
+                            <ValidationMessage For="(()=> usuario.Contrasena)" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Repetir Contraseña</label>
+                            <InputText class="form-control" type="password" @bind-Value="@usuario.RepetirContrasena"></InputText>
+                            <ValidationMessage For="(()=> usuario.RepetirContrasena)" />
+                        </div>
+
+                        @* <div class="form-group">
+                            <label>Rol de Cuenta</label>
+                            <InputSelect class="form-control" @bind-Value="@usuario.IdRol">
+                                <option value="0">Seleccione un Rol</option>
+                                @foreach (var rol in roles)
+                                {
+                                    <option value="@rol.IdRol">@rol.NombreRol</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="(()=> usuario.IdRol)" />
+                        </div> *@
+
+                    </div>
+
+                    <div class="row mb-2">
+
+                        <div class="col-5">
+                            <button type="submit" class="btn btn-primary btn-block">Registrarse</button>
+                        </div>
+
+                    </div>
+                </EditForm>
+                
+                <a href="/" class="text-center ">
+                    <font style="vertical-align: inherit;"><font style="vertical-align: inherit;">Ya estoy registrado</font></font>
+                    </a>
+            </div>
+
+        </div>
+    </div>
+
+
+@code {
+    UsuarioAltaVM usuario = new();
+    // List<RolVM> roles = new();
+    //List<RazonSocialVM> razonSociales = new();
+    List<RazonSocialVM> razonSocialesFiltradas = new();
+    public bool nombreUsuarioExiste = false;
+    public bool nroJDENoExiste = false;
+    public string buscarRazon = "";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        // roles = await _usuarioService.GetRol();
+        //razonSociales = await _dataWareHouseService.GetAllRazonSocial();
+        usuario.IdRol = 2;
+    }
+
+    public async Task Guardar()
+    {
+        nombreUsuarioExiste = await _usuarioService.NombreUsuarioExiste(usuario.NombreUsuario);
+        nroJDENoExiste = await _dataWareHouseService.NroJDENoExiste((int)usuario.NroClienteJDE);
+        if (!nombreUsuarioExiste && !nroJDENoExiste)
+        {
+            if (await _usuarioService.GuardarNuevoUsuario(usuario))
+            {
+                var msj = "Se Registro el Usuario " + usuario.NombreUsuario + " Correctamente!";
+                await js.InvokeVoidAsync("AlertaExito", msj);
+                //await Task.Delay(2000);
+                navigation.NavigateTo("/");
+            }
+            else
+            {
+                var msj = "Algo fallo!, No se pudo registrar el nuevo usuario.";
+                await js.InvokeVoidAsync("AlertaFallo", msj);
+            }
+        }
+    }
+
+}

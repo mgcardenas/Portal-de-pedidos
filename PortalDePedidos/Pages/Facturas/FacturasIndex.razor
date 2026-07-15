@@ -1,0 +1,282 @@
+﻿@page "/Facturas"
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@using PortalDePedidosShared.FacturasVM
+@using PortalDePedidosShared.UsuariosVM
+@using Blazorise.DataGrid
+@using Blazorise
+@using Blazored.SessionStorage
+@using PortalDePedidos.Extensiones
+@using ClosedXML.Excel
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@inject DataWareHouseClienteService _dataWarehouseService
+@inject UsuarioClienteService _usuarioService
+@inject IJSRuntime JSRuntime
+@inject ExcelService _excelService
+@inject ISessionStorageService _sessionStorageService;
+@inject FacturasContainer _facturasContainer 
+@inject NavigationManager navigation
+@inject PdfClienteService _pdfService
+
+
+ <div class="my-scrollbar-page">
+<div class="card card-primary mt-2">
+    <div class="card-header">
+        @if (_facturasContainer?.cliente != null && sesionUsuario.Rol == "Comercial")
+        {
+            <h3 class="card-title">Facturas de cliente: @_facturasContainer.cliente.nombreUsuario</h3>
+        }
+        else if (sesionUsuario != null && sesionUsuario.Rol != "Comercial")
+        {
+            <h3 class="card-title">Facturas de cliente: @sesionUsuario.NombreUsuario</h3>
+        }
+    </div>
+
+    <div class="card-body">
+        @* <button class="btn btn-primary" @onclick="ExportToPdf">Exportar a PDF</button> *@
+        <EditForm Model="filtro" OnInvalidSubmit="Buscar">
+
+            <div class="input-group row">
+                <label class="col-1">Fecha Desde: </label>
+                <div class="col-2">
+                    <InputDate class="form-control" @bind-Value="@filtro.FechaDesde" disabled="@espera"></InputDate>
+                    <ValidationMessage For="(()=> filtro.FechaDesde)" />
+                </div>
+
+                <label class="col-1">Fecha Hasta: </label>
+                <div class="col-2">
+                    <InputDate class="form-control" @bind-Value="@filtro.FechaHasta" disabled="@espera"></InputDate>
+                    <ValidationMessage For="(()=> filtro.FechaHasta)" />
+                </div>
+            </div>
+
+            <div class="input-group row mt-2">
+                <label class="col-1">Cliente: </label>
+                <div class="col-2">
+                    <InputSelect class="form-control" @bind-Value="@filtro.CodCliente" disabled>
+                        @if (sesionUsuario?.Rol != "Comercial")
+                        {
+                            <option value="@sesionUsuario?.NroUsuarioJDE">@sesionUsuario?.NroUsuarioJDE - @sesionUsuario?.NombreUsuario</option>
+                        }
+                        else if (_facturasContainer?.cliente != null)
+                        {
+                            <option value="@_facturasContainer.cliente.nroUsuarioJDE">@_facturasContainer.cliente.nroUsuarioJDE - @_facturasContainer.cliente.nombreUsuario</option>
+                        }
+                    </InputSelect>
+
+                    <ValidationMessage For="(()=> filtro.CodCliente)" />
+                </div>
+
+
+                <div class="input-group-append col-1">
+                    <button class="btn" @onclick="Buscar" disable>
+                        <i class="fas fa-search fa-fw"></i>
+                    </button>
+                </div>
+                @if (sesionUsuario.Rol == "Comercial")
+                {
+                    <div class="input-group-append col-2">
+                        <button class="btn btn-primary" @onclick="Recargar">
+                            <i class="fas fa-user"></i> Consultar otro cliente
+                        </button>
+                    </div>
+                }
+            </div>
+        </EditForm>
+    </div>
+
+</div>
+
+    @* Informacion importante *@
+    <div id="alerta" class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-info-circle " style="color:whitesmoke"></i>
+        La descarga de documentos con fecha de hoy, está disponible a partir del día de mañana.
+        <button type="button" class="close" data-bs-dismiss="alert" aria-label="Close">
+            <span style="color:white">&times;</span>
+        </button>
+    </div>
+
+<div class="card">
+    <div class="card-body">
+        @if (espera)
+        {
+
+            <div style="display:flex;align-items:center;justify-content:center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+            </div>
+        }
+        else
+        {
+
+
+
+            <a class="col col-1" type="Button" @onclick="GenerarExcel">
+                <Tooltip Text="Descargar reporte Excel" Placement="TooltipPlacement.Top">
+                    <i class="fas fa-file-excel"></i> Excel
+                </Tooltip>
+            </a>
+            <DataGrid TItem="FacturasSP"
+                      Data="@facturas"
+                      PageSize="10000"
+                      Responsive
+                      Class="table table-bordered table-striped">
+
+                <DataGridColumn Caption="" Editable="false">
+                    <DisplayTemplate>
+                        @if (context.Nombre_archivo != null)
+                        {
+
+                            <a class="col col-1" type="Button" @onclick="() => ExportToPdf(context)">
+                                <Tooltip Text="Descargar Factura" Placement="TooltipPlacement.Top">
+                                    <i class="fas fa-file-pdf"></i>
+                                </Tooltip>
+                            </a>
+                        }
+                    </DisplayTemplate>
+                </DataGridColumn>
+                @* <DataGridColumn Field="@nameof(FacturasSP.CodCliente)" Caption="Código de cliente" Editable="false"></DataGridColumn> *@
+                @* <DataGridColumn Field="@nameof(FacturasSP.Tipo_doc)" Caption="Tipo de documento" Editable="false"></DataGridColumn> *@
+                <DataGridColumn Field="@nameof(FacturasSP.Nro_doc)" Caption="Nro de documento" Editable="false"></DataGridColumn>
+                @* <DataGridColumn Caption="Expr1" Editable="false">
+                    <DisplayTemplate>
+                        <p>@context.Expr1.ToString("dd/MM/yyyy")</p>
+                    </DisplayTemplate>
+                </DataGridColumn> 
+                <DataGridColumn Field="@nameof(FacturasSP.Nombre_archivo)" Caption="Nombre de archivo" Editable="false"></DataGridColumn>
+                *@
+                <DataGridColumn Field="@nameof(FacturasSP.NroFactura)" Caption="Nro de factura" Editable="false"></DataGridColumn>
+                <DataGridColumn Field="@nameof(FacturasSP.Precio_total)" Caption="Importe total" Editable="false">
+                        <DisplayTemplate>
+                            @{
+                                var importeBrutoFormateado = context.Precio_total.ToString("N2", new System.Globalization.CultureInfo("es-AR"));
+                            }
+                            <span>$@importeBrutoFormateado</span>
+                        </DisplayTemplate>
+                </DataGridColumn>
+                <DataGridColumn Field="@nameof(FacturasSP.Fecha_factura)" Caption="Fecha de factura" Editable="false">
+                        <DisplayTemplate>
+                            <p>@(((DateOnly)context.Fecha_factura).ToString("dd/MM/yyyy"))</p>
+                        </DisplayTemplate>
+                </DataGridColumn>
+                <DataGridColumn Caption="Fecha de vencimiento de factura" Editable="false">
+                    <DisplayTemplate>
+                        <p>@(((DateOnly)context.Fecha_vto_factura).ToString("dd/MM/yyyy"))</p>
+                    </DisplayTemplate>
+                </DataGridColumn>
+                <DataGridColumn Field="@nameof(FacturasSP.Nro_remito)" Caption="Nro de remito" Editable="false"></DataGridColumn>
+            </DataGrid>
+        }
+    </div>
+</div>
+</div> 
+
+@code {
+    List<FacturasSP> facturas = new();
+    FiltroFacturasSP filtro = new();
+    List<UsuarioVM> clientes = new();
+    public bool espera = false;
+    SesionUsuario sesionUsuario = new();
+    protected override async Task OnInitializedAsync()
+    {
+        sesionUsuario = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+        if (sesionUsuario == null)
+        {
+            await JSRuntime.InvokeVoidAsync("AlertaArticulo", "Error: Usuario no encontrado.");
+            return;
+        }
+
+        if (_facturasContainer.cliente == null && sesionUsuario.Rol == "Comercial")
+        {
+            var msj = "¡Debe seleccionar un cliente antes de consultar sus facturas!";
+            await JSRuntime.InvokeVoidAsync("AlertaArticulo", msj);
+            navigation.NavigateTo("/FacturasTablaUsuarios");
+            return;
+        }
+
+        espera = true;
+        clientes = (await _usuarioService.GetClientes()).OrderByDescending(x => x.nroUsuarioJDE).ToList();
+
+        if (sesionUsuario.Rol != "Comercial")
+        {
+            filtro.CodCliente = int.Parse(sesionUsuario.NroUsuarioJDE);
+        }
+        else if (_facturasContainer.cliente != null)
+        {
+            filtro.CodCliente = int.Parse(_facturasContainer.cliente.nroUsuarioJDE);
+        }
+
+        espera = false;
+    }
+
+
+
+    public async Task Buscar()
+    {
+        espera = true;
+        if (sesionUsuario.Rol != "Comercial")
+        {
+            filtro.CodCliente = int.Parse(sesionUsuario.NroUsuarioJDE);
+        }
+        facturas = await _dataWarehouseService.GetFacturas(filtro);
+        espera = false;
+    }
+    private async Task downloadFile(string fileName, string filePath)
+    {
+        var element = await JSRuntime.InvokeAsync<IJSObjectReference>("BlazorDownloadFile", "a");
+        await element.InvokeVoidAsync("setAttribute", "href", filePath);
+        await element.InvokeVoidAsync("setAttribute", "download", fileName);
+        await element.InvokeVoidAsync("click");
+        await element.InvokeVoidAsync("dispose");
+    }
+
+    private async Task Recargar()
+    {
+        _facturasContainer.cliente = null;
+        navigation.NavigateTo("/FacturasTablaUsuarios");
+    }
+
+    private async Task GenerarExcel()
+    {
+        await _excelService.exportExcelFacturas(facturas, filtro, JSRuntime, _facturasContainer.cliente);
+    }
+
+    private async Task ExportToPdf(FacturasSP factura)
+    {
+
+        // Generar el PDF
+        try
+        {
+            var respuesta = await _pdfService.GetFacturaByte(factura);
+            if (respuesta.Exito)
+            {
+                var base64 = Convert.ToBase64String(respuesta.Data);
+                // Descargar el PDF
+                var fileName = $"Factura nro {factura.NroFactura}.pdf";
+                await JSRuntime.InvokeVoidAsync("BlazorDownloadFile", fileName, base64);
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("AlertaFallo", "No se pudo descargar la factura. Comuniquese con el area de comercial para reclamar este documento");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+
+
+    }
+}
+<script>
+    function BlazorDownloadFile(filename, bytesBase64) {
+        var link = document.createElement('a');
+        link.download = filename;
+        link.href = "data:application/octet-stream;base64," + bytesBase64;
+        document.body.appendChild(link); // Needed for Firefox
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>

@@ -1,0 +1,267 @@
+﻿@page "/EstadisticaArticulos"
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@using PortalDePedidosShared.FacturasVM
+@using PortalDePedidosShared.RemitosVM
+@using PortalDePedidosShared.UsuariosVM
+@using PortalDePedidosShared.EstadisticasVM
+@using Blazorise.DataGrid
+@using Blazorise
+@using Blazored.SessionStorage
+@using PortalDePedidos.Extensiones
+@using ClosedXML.Excel
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@using System.Text.Json
+@inject DataWareHouseClienteService _dataWarehouseService
+@inject UsuarioClienteService _usuarioService
+@inject IJSRuntime JSRuntime
+@inject ExcelService _excelService
+@inject ISessionStorageService _sessionStorageService;
+@inject NavigationManager navigation
+@inject PdfClienteService _pdfService
+@inject EstadisticaClienteService _estadisticaService
+@inject EstadisticaContainer _estadisticaContainer
+
+<div class="my-scrollbar-page">
+
+
+<div class="card card-primary mt-2">
+    <div class="card-header">
+        @if (_estadisticaContainer?.cliente != null && sesionUsuario.Rol == "Comercial")
+        {
+            <h3 class="card-title">Estadísticas de cliente: @_estadisticaContainer.cliente.nombreUsuario</h3>
+        }
+        else if (sesionUsuario != null && sesionUsuario.Rol != "Comercial")
+        {
+            <h3 class="card-title">Estadísticas de cliente: @sesionUsuario.NombreUsuario</h3>
+        }
+    </div>
+
+    <div class="card-body">
+        @* <button class="btn btn-primary" @onclick="ExportToPdf">Exportar a PDF</button> *@
+        <EditForm Model="filtroEstadistica" OnInvalidSubmit="Buscar">
+
+            <div class="input-group row">
+                <label class="col-1">Fecha Desde: </label>
+                <div class="col-2">
+                    <InputDate class="form-control" @bind-Value="@filtroEstadistica.fechaDesde" disabled="@espera"></InputDate>
+                    <ValidationMessage For="(()=> filtroEstadistica.fechaDesde)" />
+                </div>
+
+                <label class="col-1">Fecha Hasta: </label>
+                <div class="col-2">
+                    <InputDate class="form-control" @bind-Value="@filtroEstadistica.fechaHasta" disabled="@espera"></InputDate>
+                    <ValidationMessage For="(()=> filtroEstadistica.fechaHasta)" />
+                </div>
+
+
+                <label class="col-2" style="text-align:right">Tipo de Artículos: </label>
+                <div class="col-2">
+                    <InputSelect class="form-control" @bind-Value="filtroEstadistica.TipoProducto" disabled="@espera">
+                        <option value="@TipoEstadisticaProducto.Adhesivos">Adhesivos</option>
+                        <option value="@TipoEstadisticaProducto.Adoquines">Adoquines</option>
+                        <option value="@TipoEstadisticaProducto.B20Q">B20Q</option>
+                        <option value="@TipoEstadisticaProducto.CementoBolsas">Cemento - Bolsas</option>
+                            <option value="@TipoEstadisticaProducto.CementoCaltex">CALTEX - Cemento de albañilería</option>
+                        <option value="@TipoEstadisticaProducto.Viguetas">Viguetas</option>
+                    </InputSelect>
+                </div>
+
+            </div>
+
+            <div class="input-group row mt-2">
+                <label class="col-1">Cliente: </label>
+                <div class="col-2">
+                    <InputSelect class="form-control" @bind-Value="@filtroEstadistica.CodCliente" disabled>
+                        @if (sesionUsuario?.Rol != "Comercial")
+                        {
+                            <option value="@sesionUsuario?.NroUsuarioJDE">@sesionUsuario?.NroUsuarioJDE - @sesionUsuario?.NombreUsuario</option>
+                        }
+                        else if (_estadisticaContainer?.cliente != null)
+                        {
+                            <option value="@_estadisticaContainer.cliente.nroUsuarioJDE">@_estadisticaContainer.cliente.nroUsuarioJDE - @_estadisticaContainer.cliente.nombreUsuario</option>
+                        }
+                    </InputSelect>
+
+                    <ValidationMessage For="(()=> filtroEstadistica.CodCliente)" />
+                </div>
+
+
+                <div class="input-group-append col-1">
+                    <button class="btn " @onclick="Buscar" disable>
+                        <i class="fas fa-search fa-fw"></i>
+                    </button>
+                </div>
+                <div class="col-4"></div>
+                @if (sesionUsuario.Rol == "Comercial")
+                {
+                    <div class="input-group-append col-2">
+                        <button class="btn btn-primary" @onclick="Recargar">
+                            <i class="fas fa-user"></i> Consultar otro cliente
+                        </button>
+                    </div>
+                }
+            </div>
+        </EditForm>
+    </div>
+
+</div>
+
+@if (espera)
+{
+
+    <div style="display:flex;align-items:center;justify-content:center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+    </div>
+}
+    
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h3 class="card-title">Gráfico de @TipoEstadisticaProductoManager.GetEtiqueta(filtroEstadistica.TipoProducto)</h3>
+        </div>
+        <div class="card-body">
+        <p class="card-title">Medido en: <br /> <b>@TipoEstadisticaProductoManager.GetUnidad(filtroEstadistica.TipoProducto)</b></p>
+            <canvas id="myChart" width="400" height="200"></canvas>
+        </div>
+    </div>
+
+
+</div>
+@code {
+    public EstadisticaProductoVM estadisticaProducto = new();
+    public FiltroEstadisticaProducto filtroEstadistica = new();
+    public bool espera = false;
+    SesionUsuario sesionUsuario = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        espera = true;
+
+        sesionUsuario = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+        if (sesionUsuario == null)
+        {
+            await JSRuntime.InvokeVoidAsync("AlertaArticulo", "Error: Usuario no encontrado.");
+            return;
+        }
+
+        if (_estadisticaContainer.cliente == null && sesionUsuario.Rol == "Comercial")
+        {
+            var msj = "¡Debe seleccionar un cliente antes de consultar sus estadísticas!";
+            await JSRuntime.InvokeVoidAsync("AlertaArticulo", msj);
+            navigation.NavigateTo("/EstadisticasTablaUsuarios");
+        }
+
+        if (sesionUsuario.Rol != "Comercial")
+        {
+            filtroEstadistica.CodCliente = sesionUsuario.NroUsuarioJDE;
+        }
+        else if (_estadisticaContainer.cliente != null)
+        {
+            filtroEstadistica.CodCliente = _estadisticaContainer.cliente.nroUsuarioJDE;
+        }
+
+        estadisticaProducto = await _estadisticaService.GetEstadisticaProducto(filtroEstadistica);
+
+        //await JSRuntime.InvokeVoidAsync("createChart");
+        //await Buscar();
+        espera = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            //await JSRuntime.InvokeVoidAsync("createChart");
+            
+        }
+    }
+
+    private async Task Recargar()
+    {
+        _estadisticaContainer.cliente = null;
+        navigation.NavigateTo("/EstadisticasTablaUsuarios");
+    }
+
+    public async Task Buscar()
+    {
+        espera = true;
+        estadisticaProducto = await _estadisticaService.GetEstadisticaProducto(filtroEstadistica);
+        await CrearGrafico();
+        espera = false;
+    }
+
+    public async Task CrearGrafico()
+    {
+        var estadisticaAgrupado = estadisticaProducto.EstadisticasPorMes.GroupBy(x => x.Anio).ToList();
+        string jsonString = JsonSerializer.Serialize(estadisticaAgrupado);
+        await JSRuntime.InvokeVoidAsync("createChart", jsonString);
+    }
+}
+
+@* Funciones de JS *@
+
+<script>
+    var myChart; // Variable global para la instancia del gráfico
+
+    // Función para crear datasets a partir del JSON
+    function generarDatasets(estadisticas) {
+        return estadisticas.map(anioData => {
+            const data = new Array(12).fill(null); // Array de 12 posiciones con 'null'
+            const anio = anioData[0].Anio; // Asignamos el año como label
+
+            // Mapeamos cada objeto en el array correspondiente al mes
+            anioData.forEach(entry => {
+                data[entry.Mes - 1] = entry.Cantidad; // Restamos 1 porque los arrays son base 0
+            });
+
+                var color = randomColor();
+            return {
+                label: `Año ${anio}`,
+                data: data,
+                borderColor: color, // Genera un color aleatorio para cada línea
+                backgroundColor: color, // Color más claro para el fondo
+                fill: false
+            };
+        });
+    }
+
+    // Generar un color aleatorio para las líneas
+    function randomColor(opacity = 1) {
+        const r = Math.floor(Math.random() * 255);
+        const g = Math.floor(Math.random() * 255);
+        const b = Math.floor(Math.random() * 255);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
+
+    function createChart(jsonString) {
+        //destruimos grafico anterior si lo hay
+        destroyChart();
+        // Convertimos la cadena JSON en un objeto JavaScript
+        const estadisticasPorAnio = JSON.parse(jsonString);
+        var ctx = document.getElementById('myChart').getContext('2d');
+        myChart = new Chart(ctx, {
+            type: 'bar', // Tipo de gráfico
+            data: {
+                labels: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+                datasets: generarDatasets(estadisticasPorAnio)
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    function destroyChart() {
+        if (myChart) {
+            myChart.destroy();  // Destruir el gráfico si existe
+            myChart = null;     // Limpiar la referencia
+        }
+    }
+</script>

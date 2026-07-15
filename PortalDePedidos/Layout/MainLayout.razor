@@ -1,0 +1,116 @@
+﻿@*  @inherits LayoutComponentBase
+ @inject IJSRuntime JS
+<div class="page">
+</div>
+<PortalDePedidos.Pages.Shared.NavBar></PortalDePedidos.Pages.Shared.NavBar>
+<PortalDePedidos.Pages.Shared.SideBar></PortalDePedidos.Pages.Shared.SideBar>
+
+<div class="content-wrapper">
+    <section class="content">
+        <div class="my-scrollbar-web">
+            @Body
+        </div>
+    </section>
+</div>
+ <PortalDePedidos.Pages.Shared.Footer></PortalDePedidos.Pages.Shared.Footer> 
+
+@code{
+    protected override async Task OnInitializedAsync()
+    {
+    }
+
+} *@
+
+@inherits LayoutComponentBase
+@inject IJSRuntime JS
+
+<div class="layout-grid">
+    <header class="navbar-area">
+        <PortalDePedidos.Pages.Shared.NavBar />
+    </header>
+
+    <aside class="sidebar-area">
+        <PortalDePedidos.Pages.Shared.SideBar />
+    </aside>
+
+    <main class="content-wrapper">
+        <section class="content">
+            <div class="my-scrollbar-web">
+                @Body
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer-area">
+        <PortalDePedidos.Pages.Shared.Footer />
+    </footer>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+    }
+}
+
+<style>
+    html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* sin scroll global */
+    }
+
+    /* Estructura general */
+    .layout-grid {
+        display: grid;
+        grid-template-areas:
+            "navbar navbar"
+            "content content"
+            "footer footer";
+        grid-template-rows: 60px 1fr 50px; /* alto de navbar y footer */
+        grid-template-columns: 250px 1fr; /* ancho de sidebar y contenido */
+        height: 100vh;
+    }
+
+    /* Zonas */
+    .navbar-area {
+        grid-area: navbar;
+        background: #343a40;
+        color: white;
+    }
+
+    .sidebar-area {
+        grid-area: sidebar;
+        background: #222d32;
+        color: white;
+        overflow-y: auto; /* scroll interno si el menú es largo */
+    }
+
+    /* .content-area { */
+    .content-wrapper{
+        grid-area: content;
+/*         background: #f4f6f9;
+        overflow: hidden; */
+    }
+
+    .footer-area {
+        grid-area: footer;
+        background: #fff;
+        border-top: 1px solid #ddd;
+    }
+
+    /* Scroll interno para contenido */
+    .my-scrollbar-web {
+        /* height: 100%;
+        overflow-y: auto;
+        */
+        
+        display: block;
+        position: relative;
+        height: 80vh;
+        overflow: auto;
+        padding: 1rem; 
+       
+    }
+
+</style>

@@ -1,0 +1,174 @@
+﻿@page "/ArticulosEditar/{codArticulo}"
+@using Blazored.SessionStorage
+@using PortalDePedidosModel
+@using PortalDePedidosShared.ArticulosVM
+@using PortalDePedidos.Extensiones
+@using PortalDePedidosService
+@using Microsoft.AspNetCore.Authorization
+@using PortalDePedidosShared.AuditoriasVM
+@attribute [Authorize(Roles = "Comercial")]
+@inject ArticuloClienteService _articuloService
+@inject ImagenClienteService _imagenService
+@inject DataWareHouseClienteService _dataWareHouseService
+@inject IJSRuntime js
+@inject NavigationManager navigation
+@inject AuditoriaClienteService _auditoriaService
+@inject ISessionStorageService _sessionStorageService;
+
+<div class="my-scrollbar-page">
+
+    @if (espera)
+    {
+
+        <div style="display:flex;align-items:center;justify-content:center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+    }
+
+    <div class="card card-primary m-1">
+        <div class="card-header">
+            <h3 class="card-title">Editar Artículo</h3>
+        </div>
+
+        <EditForm Model="articuloVM" OnValidSubmit="Guardar">
+            <DataAnnotationsValidator />
+
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="form-group row">
+                            <label>Código de Artículo</label>
+                            <InputText class="form-control" readOnly @bind-Value="@articuloVM.CodItem"></InputText>
+                            <ValidationMessage For="(()=> articuloVM.CodItem)" />
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Nombre de Artículo</label>
+                            <InputText class="form-control" readOnly @bind-Value="@articuloVM.NombreItem"></InputText>
+                            <ValidationMessage For="(()=> articuloVM.NombreItem)" />
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Descripción del artículo</label>
+                            <InputText class="form-control" readonly @bind-Value="@articuloVM.Descripcion2"></InputText>
+                            <ValidationMessage For="(()=> articuloVM.Descripcion2)" />
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Grupo del artículo</label>
+                            <InputText class="form-control" readonly @bind-Value="@articuloVM.GrupoArticulo"></InputText>
+                            <ValidationMessage For="(()=> articuloVM.GrupoArticulo)" />
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Unidad de medida del artículo</label>
+                            <InputText class="form-control" readonly @bind-Value="@articuloVM.UM_Principal"></InputText>
+                            <ValidationMessage For="(()=> articuloVM.UM_Principal)" />
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Código EAN</label>
+                            <InputText class="form-control" readonly @bind-Value="@articuloVM.CodEAN"></InputText>
+                            <ValidationMessage For="(()=> articuloVM.CodEAN)" />
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Planta</label>
+                            <InputText class="form-control" readonly @bind-Value="@articuloVM.CodPlanta"></InputText>
+                            <ValidationMessage For="(()=> articuloVM.CodPlanta)" />
+                        </div>
+                    </div>
+                    <div class="col-6">
+                            <div class="form-group row">
+                                <Label>Imagen del Artículo</Label>
+                                <InputFile OnChange="CargarImagen" accept=".png,.jpg" />
+                            </div>
+                        <div class="form-group row">
+                            @if (imagenVM != null && imagenVM.Codigo != "")
+                            {
+                                <img src="@($"data:image/png;base64,{imagenVM.Codigo}")" alt="Imagen del Artículo" class="img-fluid col-6" />
+                            }
+                            else{
+                                <img src="/imagenes/productos/sinimagen.jpg" alt="Imagen del Artículo" class="img-fluid col-6" />
+                                }
+                            </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-footer">
+                <button type="submit" disabled="@enviado" class="btn btn-primary">Guardar</button>
+                <a disabled="@enviado" href="/Articulos" class="btn btn-primary">Volver</a>
+            </div>
+    
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string codArticulo { get; set; }
+
+    public bool espera = false;
+    public bool enviado = false;
+    public List<UnidadVM> unidades = new();
+    public List<SubCategoriaVM> subCategorias = new();
+    public ArticuloEditarVM articuloVM = new();
+    public ImagenVM imagenVM = new();
+    public SesionUsuario sesionUsuario = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        espera = true;
+        //unidades = await _articuloService.GetUnidades();
+        //subCategorias = await _articuloService.GetSubCategorias();
+        sesionUsuario = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+        articuloVM = await _articuloService.GetArticuloEditar(codArticulo);
+        var imagen = await _imagenService.GetImagen(codArticulo);
+        @if (imagen != null)
+        {
+            imagenVM = imagen;
+        }
+        espera = false;
+    }
+
+    private async Task CargarImagen(InputFileChangeEventArgs e)
+    {
+        var imagen = e.File;
+        if (imagen != null)
+        {
+            using (var ms = new MemoryStream())
+            {
+                await imagen.OpenReadStream().CopyToAsync(ms);
+                string base64 = Convert.ToBase64String(ms.ToArray());
+                imagenVM.Codigo = base64;
+            }
+            imagenVM.IdArticulo = codArticulo;
+        }
+    }
+
+    public async Task Guardar()
+    {
+        enviado = true;
+        if (await _imagenService.GuardarImagen(imagenVM))
+        {
+            await _auditoriaService.GuardarNuevaAuditoria(new AuditoriasVM()
+                {
+                    idUsuario = sesionUsuario.Id,
+                    idOperacion = OperacionesManager.GetIdOperacion(Operacion.EditarArticulo),
+                    timestamps = DateTime.Now,
+                });
+            var msj = "Se actualizó el artículo " + articuloVM.NombreItem + " Correctamente!";
+            await js.InvokeVoidAsync("AlertaExito", msj);
+            navigation.NavigateTo("/Articulos");
+        }
+        else
+        {
+            var msj = "Algo fallo!, No se pudo actualizar el artículo.";
+            await js.InvokeVoidAsync("AlertaFallo", msj);
+        }
+        enviado = false;
+    }
+}

@@ -1,0 +1,46 @@
+﻿@page "/Pagos"
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@inject PagoService _pagoService
+
+<div class="row">
+    <div class="card" style="height:max-content">
+        <div class="card-body">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Nro. Recibo</th>
+                        <th>Nro. Cheque</th>
+                        <th>Fecha Cobranza</th>
+                        <th>Fecha Liquidación</th>
+                        <th>Importe</th>
+                        <th>Estado del Valor</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in pagos)
+                    {
+                        <tr>
+                            <td>@item.NroRecibo</td>
+                            <td>@item.NroCheque</td>
+                            <td>@item.FechaCobranza</td>
+                            <td>@item.FechaLiquidacion</td>
+                            <td>@item.Importe</td>
+                            <td>@item.EstadoValor</td>
+                        </tr>
+                    }
+
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    List<Pago> pagos = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        pagos = await _pagoService.Get();
+    }
+}

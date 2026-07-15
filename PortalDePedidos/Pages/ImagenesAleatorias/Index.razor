@@ -1,0 +1,221 @@
+﻿@page "/ImagenesAleatorias"
+@using Blazored.SessionStorage
+@using PortalDePedidosModel
+@using PortalDePedidos.Extensiones
+@using PortalDePedidosService
+@using Microsoft.AspNetCore.Authorization
+@using PortalDePedidosShared.ImagenesAleatoriasVM
+@using PortalDePedidosShared.AuditoriasVM
+@attribute [Authorize(Roles = "Comercial")]
+@inject ImagenAleatoriaClienteService _imagenService
+@inject IJSRuntime js
+@inject NavigationManager navigation
+@inject AuditoriaClienteService _auditoriaService
+@inject ISessionStorageService _sessionStorageService;
+
+<div class="my-scrollbar-page">
+    @if(espera) {
+        <div style="display:flex;align-items:center;justify-content:center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+    }
+    <div class="row">
+        <div class="col-6">
+            <div class="card card-primary m-1">
+                <div class="card-header">
+                    <h3 class="card-title">Cargar Imagen Aleatoria</h3>
+                </div>
+
+                <EditForm Model="imagenVM" OnValidSubmit="Guardar">
+                    <DataAnnotationsValidator />
+
+                    <div class="card-body">
+
+                        <div class="form-group row">
+                            <Label>Imagen aleatoria</Label>
+                            <InputFile OnChange="CargarImagen" accept=".png,.jpg" />
+                        </div>
+                        <div class="form-group row">
+                            @if(imagenCargada != null && imagenCargada != "") {
+                                <img src="@($"data:image/png;base64,{imagenCargada}")" alt="Imagen Cargada" class="img-fluid col-6" />
+                            } else {
+                                <img src="/imagenes/productos/sinimagen.jpg" alt="Imagen del Artículo" class="img-fluid col-6" />
+                            }
+                        </div>
+                    </div>
+
+                    <div class="card-footer">
+                        <button type="submit" disabled="@enviado" class="btn btn-primary">Guardar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+        <div class="col-6">
+            <div class="card card-primary m-1">
+                <div class="card-header">
+                    <h3 class="card-title">Listado de Imágenes</h3>
+                </div>
+
+                <div class="card-body">
+
+                    <DataGrid TItem="ImagenAleatoriaVM"
+                              Data="@imagenesTabla"
+                              PageSize="10000"
+                              RowSelectable="@((item) => false)"
+                              Class="table table-bordered table-striped ">
+                        @* <DataGridColumn Field="@nameof(ImagenAleatoriaVM.Id)" Caption="ID" Editable="false"></DataGridColumn> *@
+                        <DataGridColumn Caption="Imagen" Editable="false">
+                            <DisplayTemplate>
+                                @if(context.Codigo != null) {
+                                    <img src="@($"data:image/png;base64,{context.Codigo}")" alt="Imagen del Artículo" width="60" height="60" />
+                                } else {
+                                    <img src="/imagenes/productos/sinimagen.jpg" alt="Imagen del Artículo" width="60" height="60" />
+                                }
+                            </DisplayTemplate>
+                        </DataGridColumn>
+                        <DataGridColumn Caption="Eliminar" Editable="false">
+                            <DisplayTemplate>
+                                <button class="btn btn-danger" @onclick="() => EliminarImagen(context.Id)">Eliminar</button>
+                            </DisplayTemplate>
+                        </DataGridColumn>
+                    </DataGrid>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    public bool espera = false;
+
+    public bool enviado = false;
+
+
+
+    public ImagenAleatoriaVM imagenVM = new();
+
+    public string imagenCargada { get; set; } = ""; // Imagen cargada independiente
+
+    public List<ImagenAleatoriaVM> imagenesTabla = new();
+
+    public SesionUsuario sesionUsuario = new();
+
+
+
+    protected override async Task OnInitializedAsync() {
+
+        espera = true;
+
+
+
+        // Cargar sesión del usuario
+
+        sesionUsuario = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+
+
+
+        // Cargar todas las imágenes en la tabla
+
+        imagenesTabla = await _imagenService.GetAll();
+
+
+
+        espera = false;
+
+    }
+
+    private async Task EliminarImagen(int id)
+    {
+
+        if(await _imagenService.EliminarImagen(id)) {
+
+            var msj = "Se eliminó la imagen correctamente!";
+
+            await js.InvokeVoidAsync("AlertaExito",msj);
+        }
+        else {
+
+            var msj = "Algo falló! No se pudo eliminar la imagen.";
+
+            await js.InvokeVoidAsync("AlertaFallo",msj);
+        }
+    }
+
+    private async Task CargarImagen(InputFileChangeEventArgs e) {
+
+        var imagen = e.File;
+
+
+
+        if(imagen != null) {
+
+            // Verificar si la imagen no excede un límite personalizado, por ejemplo, 5 MB
+            if (imagen.Size > 5 * 1024 * 1024) // 5 MB límite
+            {
+                var msj = "El archivo es demasiado grande. El tamaño máximo permitido es 5 MB.";
+
+                await js.InvokeVoidAsync("AlertaFallo", msj);
+                return;
+            }
+
+            using (var ms = new MemoryStream())
+            {
+                // Aumentar el límite de OpenReadStream a 5 MB
+                await imagen.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).CopyToAsync(ms);
+                string base64 = Convert.ToBase64String(ms.ToArray());
+                imagenCargada = base64; // Guardar la imagen en Base64
+            }
+
+        }
+
+    }
+
+
+
+    public async Task Guardar() {
+
+        enviado = true;
+
+
+
+        // Guardar la imagen cargada en la base de datos
+
+        imagenVM.Codigo = imagenCargada;
+
+
+
+        if(await _imagenService.GuardarImagen(imagenVM)) {
+
+            var msj = "Se guardó una nueva imagen aleatoria correctamente!";
+
+            await js.InvokeVoidAsync("AlertaExito",msj);
+
+
+
+            //HACER MÉTODO QUE TRAIGA TODAS LAS IMÁGENES, NO SOLO 5.
+            imagenesTabla = await _imagenService.Get(5);
+
+
+
+            // Limpiar la imagen cargada después de guardar
+
+            imagenCargada = "";
+
+
+
+        } else {
+
+            var msj = "Algo falló! No se pudo guardar la imagen.";
+
+            await js.InvokeVoidAsync("AlertaFallo",msj);
+
+        }
+
+
+
+        enviado = false;
+
+    }
+}

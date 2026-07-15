@@ -1,0 +1,60 @@
+﻿@layout LogInLayout
+@page "/enlaceCaducado"
+ @using Microsoft.AspNetCore.Authorization
+ @using Microsoft.AspNetCore.Components.Authorization
+ @using System.Security.Claims;
+ @using Blazored.SessionStorage;
+ @using PortalDePedidosModel;
+ @using PortalDePedidos;
+ @using PortalDePedidos.Extensiones;
+ @using System.Timers
+ @using PortalDePedidosShared.IngresoPedidosVM
+ @using PortalDePedidosShared.ImagenesAleatoriasVM
+ @using PortalDePedidosService
+
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider autenticacionProvider
+@inject ISessionStorageService _sessionStorageService;
+@inject LogInClienteService _loginService
+
+<div class="container text-center mt-5">
+
+    <div class="card">
+        <div class="card-body">
+            <div class="display-1 text-danger">⚠️</div>
+            @* <h1 class="mt-4">Ups! Algo fall&oacute;.</h1> *@
+            <p class="lead text-muted">
+                Esta contraseña ya se ha restablecido o se le ha enviado un enlace de restablecimiento de contraseña más reciente. <br />
+                Compruebe su correo electrónico para obtener un enlace de restablecimiento de contraseña más reciente, o bien solicite otro restablecimiento de contraseña 
+                <a href="/OlvideContrasena">aquí</a>
+            </p>
+            <div class="mt-4">
+                <button class="btn btn-primary" @onclick="CerrarSesion">Volver</button>
+                <!--<button class="btn btn-secondary" @onclick="ReloadPage">Recargar</button>-->
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string ErrorCode { get; set; }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/Home");
+    }
+
+    private void ReloadPage()
+    {
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+    }
+    private async Task CerrarSesion()
+    {
+        //await _sessionStorageService.GuargarStorage("UltimoUsuario", sesion.NombreUsuario);
+        var autenticacionExt = (AutenticacionExtension)autenticacionProvider;
+        await autenticacionExt.ActualizarEstadoAutenticacion(null);
+        //await _loginService.Logout(sesion.Token);
+        Navigation.NavigateTo("/");
+    }
+}

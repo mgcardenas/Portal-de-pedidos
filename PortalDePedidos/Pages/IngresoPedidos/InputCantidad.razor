@@ -1,0 +1,11 @@
+﻿@using PortalDePedidosShared.IngresoPedidosVM
+<div class="col" style="align-content:center">
+    <input class="form-control" type="number" @bind="articulo" />
+</div>
+
+
+@code {
+    // Definimos el parámetro
+    [Parameter]
+    public ArticuloIngresoPedidoVM articulo { get; set; }
+}

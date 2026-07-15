@@ -1,0 +1,62 @@
+﻿@inject IJSRuntime JS
+@inject HttpClient Http
+
+<div class="alert @GetAlertClass()" role="alert">
+    <strong>Estado de conexión:</strong> @mensaje
+</div>
+
+@code {
+    private bool internetDisponible = true;
+    private bool apiDisponible = true;
+    private string mensaje = "Verificando conexión...";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ = MonitorConexion();
+    }
+
+    private async Task MonitorConexion()
+    {
+        while (true)
+        {
+            try
+            {
+                internetDisponible = await JS.InvokeAsync<bool>("isOnline");
+
+                if (internetDisponible)
+                {
+                    var response = await Http.GetAsync("/api/Login/Ping");
+                    apiDisponible = response.IsSuccessStatusCode;
+                }
+                else
+                {
+                    apiDisponible = false;
+                }
+            }
+            catch
+            {
+                apiDisponible = false;
+            }
+
+            mensaje = GetMensaje();
+            StateHasChanged();
+
+            await Task.Delay(10000); // cada 10 seg revisa
+        }
+    }
+
+    private string GetMensaje()
+    {
+        if (!internetDisponible) return "❌ Sin conexión a internet";
+        if (!apiDisponible) return "⚠ Internet OK, pero API no disponible";
+        return "✅ Conectado a internet y API disponible";
+    }
+
+    private string GetAlertClass()
+    {
+        if (!internetDisponible) return "alert-danger";
+        if (!apiDisponible) return "alert-warning";
+        return "alert-success";
+    }
+}
+

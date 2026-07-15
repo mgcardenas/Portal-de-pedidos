@@ -1,0 +1,177 @@
+﻿@page "/LogInMFA"
+@using Microsoft.AspNetCore.Components.Authorization
+@using PortalDePedidos.Extensiones
+@using PortalDePedidos.Pages.Shared
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@using Blazored.SessionStorage
+@using Microsoft.AspNetCore.Authorization
+@using PortalDePedidosShared.IngresoPedidosVM
+@using PortalDePedidosShared.FacturasVM
+@using PortalDePedidosShared.LoginVM
+@using PortalDePedidosShared.SeguimientoPedidosVM
+@layout LogInLayout
+
+@inject AuthenticationStateProvider autenticacionProvider
+@inject NavigationManager navigation
+@inject LogInClienteService loginService
+@inject AppSettings _appSettings
+@inject ReCaptchaClienteService recaptchaService
+@inject ContainerManager _containerManager
+@inject LoginContainer _loginContainer
+@inject UsuarioClienteService _usuarioService
+@inject IJSRuntime js
+@inject ISessionStorageService _sessionStorageService
+
+<div class="login-box">
+
+    <div class="card card-outline card-primary">
+        <div class="card-header text-center">
+            <img class="brand-image-xl " src="/imagenes/logo/logo_empresa.png" />
+            <p>Portal de Pedidos</p>
+        </div>
+        <div class="card-body">
+            @* <EditForm OnValidSubmit="IniciarSesion"> *@
+                
+
+                <div class="input-group mt-3">
+                    <input @bind="@codigo"  class="form-control" type="number" placeholder="Ingrese el código de seguridad "></input>
+                    <div class="input-group-append">
+                        <div class="input-group-text">
+                            <span class="fas fa-lock"></span>
+                        </div>
+                    </div>
+                </div>
+                @if (falloLogin)
+                {
+                    <p class="error text-danger">El código ingresado es incorrecto.</p>
+                }
+
+                @if (falloRecaptcha)
+                {
+                    <p class="error text-danger">Fallo validación de ReCaptcha</p>
+                    @*
+                <p class="error text-danger">Complete el captcha para ingresar</p>
+                *@
+                }
+                <div class="row mt-2">
+
+                    <ReCaptcha @ref="reCaptchaComponent"></ReCaptcha>
+
+                    <div class="g-recaptcha" data-sitekey="6LdAj3UqAAAAAAp5d8JjPOuI6rVo1hUW0TYLZQ1J" data-action="@action"></div>
+                    
+                </div>
+                <div class="row mb-2 mt-2">
+
+                    <div class="col-4">
+                        <button type="submit" disabled="@enviado" class="btn btn-primary btn-block" @onclick="IniciarSesion">Ingresar</button>
+                    </div>
+
+                    <div class="col-2">
+                        @if (enviado)
+                        {
+
+                            <div style="display:flex;align-items:center;justify-content:center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="sr-only">Loading...</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                </div>
+            @* </EditForm> *@
+
+
+        </div>
+
+    </div>
+
+</div>
+
+@code {
+    private UsuarioLogIn logIn = new();
+    private int? codigo ;
+    private bool EsEmpleado = false;
+    private bool falloLogin = false;
+    private bool falloRecaptcha = false;
+    private bool PasoRecaptcha = false;
+    private bool enviado = false;
+    private string action = "LOGIN";
+    private ReCaptcha reCaptchaComponent = new();
+
+    private string? _captchaToken;
+
+    protected override async Task OnInitializedAsync()
+    {
+        //enviado = _appSettings.ReCaptcha;
+        PasoRecaptcha = !_appSettings.ReCaptcha;
+    }
+
+
+    private async Task IniciarSesion()
+    {
+        enviado = true;
+        SesionUsuario? sesion = null;
+
+        if (_appSettings.ReCaptcha)
+        {
+            var captchaResponse = await reCaptchaComponent.GetCaptchaResponseAsync(action);
+            PasoRecaptcha = await recaptchaService.Validar(captchaResponse,action);
+        }
+
+        if (PasoRecaptcha)
+        {
+            sesion = await loginService.IngresoMFA(codigo);
+
+            if (sesion != null)
+            {
+                //Si se loguea otro usuario reinicio contenedores
+                var ultimoUsuario = await _sessionStorageService.ObtenerStorage<string>("UltimoUsuario");
+                if (ultimoUsuario != sesion.NombreUsuario && !string.IsNullOrEmpty(ultimoUsuario))
+                {
+                    _containerManager.ReiniciarContainers();
+                }
+
+                //Verifico si la contraseña expiro
+                if (sesion.ContrasenaExpirada)
+                {
+                    _loginContainer.SesionUsuario = sesion;
+                    navigation.NavigateTo("/RecuperarContrasena/" + sesion.Id);
+                    var msj = "Tu contraseña ha caducado, debes generar una nueva contraseña!";
+                    await js.InvokeVoidAsync("AlertaFallo", msj);
+                    return;
+                }
+
+                //si es un cliente o comprador se asigna al carrito de compras
+                if (sesion.Rol != "Comercial")
+                {
+                    var cliente = await _usuarioService.GetUsuarioJDE(sesion.Id, sesion.NroUsuarioJDE);
+                    _containerManager.AsignarCliente(cliente);
+                    // if (sesion.TieneDeuda)
+                    // {
+                    //     await js.InvokeVoidAsync("AlertaDeuda", "Usted posee dueda vencida. Por favor revise el estado de cuenta corriente.");
+                    // }
+                }
+
+                var autenticacionExt = (AutenticacionExtension)autenticacionProvider;
+                await autenticacionExt.ActualizarEstadoAutenticacion(sesion);
+                navigation.NavigateTo("/Home");
+            }
+            else
+            {
+                falloLogin = true;
+                logIn.userName = "";
+                logIn.password = "";
+            }
+
+        }
+        else
+        {
+            falloRecaptcha = true;
+        }
+        enviado = false;
+    }
+
+
+}

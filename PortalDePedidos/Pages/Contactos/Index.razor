@@ -1,0 +1,95 @@
+﻿@page "/Contactos"
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@using PortalDePedidosShared.ContactosVM
+@using Blazorise.DataGrid
+@using Blazorise
+@inject ContactoClienteService _contactoService
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Comercial")]
+
+@* <div class="">
+    <div class="card">
+        <div class="card-body">
+            <EditForm Model="filtroContactos">
+                <DataAnnotationsValidator />
+
+                <div class="form-group row m-1">
+                    <label class="col col-2">Nombre del Contacto</label>
+                    <div class="col col-4">
+                        <InputText class="form-control" @bind-Value="@contactos.nombreContacto"></InputText>
+                    </div>
+                </div>
+
+                <div class="form-group row m-1">
+                    <label class="col col-2">Email del Contacto</label>
+                    <div class="col col-4">
+                        <InputText class="form-control" @bind-Value="@filtroContactos.mailContacto"></InputText>
+                    </div>
+                </div>
+
+                <div class="form-group row m-1">
+                    <label class="col col-2">Registro Anulado</label>
+                    <div class="col col-4">
+                        <InputCheckbox class="form-check" @bind-Value="@filtroContactos.registroAnulado"></InputCheckbox>
+                    </div>
+                </div>
+
+                <div class="row ">
+                    <a class="btn col-1" @onclick="Buscar">
+                        <Tooltip Text="Buscar" Placement="TooltipPlacement.Top">
+                            <i class="fas fa-search"></i>
+                        </Tooltip>
+                    </a>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div> *@
+
+<div class="my-scrollbar-TablaContactos">
+    <div class="card">
+        <div class="card-body">
+            <DataGrid TItem="ContactoVM"
+                      Data="@contactos"
+                      @bind-SelectedRow="@contactoSelected"
+                      PageSize="10000"
+                      Responsive
+                      Class="table table-bordered table-striped">
+                <DataGridColumn Field="@nameof(ContactoVM.nombreContacto)" Caption="Nombre del Contacto" Editable="false"></DataGridColumn>
+                <DataGridColumn Field="@nameof(ContactoVM.mailContacto)" Caption="Email del Contacto" Editable="false"></DataGridColumn>
+                <DataGridColumn Field="@nameof(ContactoVM.observacionContacto)" Caption="Observaciones" Editable="false"></DataGridColumn>
+                <DataGridColumn Caption="Registro Anulado" Editable="false">
+                    <DisplayTemplate>
+                        @if (context.registroAnulado)
+                        {
+                            <p>Anulado</p>
+                        }
+                        else
+                        {
+                            <p>Activo</p>
+                        }
+                    </DisplayTemplate>
+                </DataGridColumn>
+
+            </DataGrid>
+        </div>
+    </div>
+</div>
+
+@code {
+    List<ContactoVM> contactos = new();
+    // FiltroContactos filtroContactos = new();
+    ContactoVM contactoSelected;
+
+    protected override async Task OnInitializedAsync()
+    {
+        contactos = await _contactoService.Get();
+    }
+
+    public void Buscar()
+    {
+        // Lógica para buscar contactos basados en filtroContactos
+    }
+}
+

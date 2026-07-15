@@ -1,0 +1,114 @@
+﻿@page "/Articulos"
+@using PortalDePedidosShared.ArticulosVM
+@using PortalDePedidos.Extensiones
+@using PortalDePedidosService
+@inject ArticuloClienteService _articuloService
+@inject DataWareHouseClienteService _dataWareHouseService
+
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Comercial")]
+
+<div class="my-scrollbar-page">
+    <div class="card card-primary mt-2">
+
+        <div class="card-header ">
+            <h3 class="card-title">Administración de Articulos</h3>
+        </div>
+
+        <div class="card-body">
+
+            <div class="input-group">
+                <input class="form-control" type="search" placeholder="Buscar por código, descripcion o categoría" aria-label="Search" @bind="@buscar" @onkeyup="HandleKeyPress"></input>
+                <div class="input-group-append">
+                    <button class="btn" @onclick="Buscar">
+                        <i class="fas fa-search fa-fw"></i>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+
+            @if (espera)
+            {
+
+                <div style="display:flex;align-items:center;justify-content:center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+
+                <DataGrid TItem="ArticuloVM"
+                          Data="@articulosTabla"
+                          PageSize="10000"
+                          RowSelectable="@((item) => false)"
+                          Class="table table-bordered table-striped ">
+
+                    <DataGridColumn Caption="Accion" Editable="false">
+                        <DisplayTemplate>
+                            <a class="btn btn-app" href="/ArticulosEditar/@Uri.EscapeDataString(@context.CodArticulo)">
+                                <i class="fas fa-edit"></i> Editar
+                            </a>
+                        </DisplayTemplate>
+                    </DataGridColumn>
+                    <DataGridColumn Field="@nameof(ArticuloVM.CodArticulo)" Caption="Código" Editable="false"></DataGridColumn>
+                    <DataGridColumn Field="@nameof(ArticuloVM.Descripcion)" Caption="Descripcion" Editable="false"></DataGridColumn>
+                    <DataGridColumn Field="@nameof(ArticuloVM.Categoria)" Caption="Categoría" Editable="false"></DataGridColumn>
+                    <DataGridColumn Caption="Imagen" Editable="false">
+                        <DisplayTemplate>
+                            @if (context.Imagen != null)
+                            {
+                                <img src="@($"data:image/png;base64,{context.Imagen}")" alt="Imagen del Artículo" width="60" height="60" />
+                            }
+                            else
+                            {
+                                <img src="/imagenes/productos/sinimagen.jpg" alt="Imagen del Artículo" width="60" height="60" />
+                            }
+                        </DisplayTemplate>
+                    </DataGridColumn>
+                    
+                </DataGrid>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    List<ArticuloVM> articulos = new();
+    List<ArticuloVM> articulosTabla = new();
+    string buscar = "";
+    public bool espera = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        espera = true;
+        articulos = await _dataWareHouseService.GetArticulos();
+        articulosTabla = articulos;
+        espera = false;
+    }
+
+    public async Task Buscar()
+    {
+        espera = true;
+
+        var query = articulos.AsQueryable();
+        query = query.Where(x => x.CodArticulo.ToUpper().Contains(buscar.ToUpper()) || x.Descripcion.ToUpper().Contains(buscar.ToUpper()) || x.Categoria.ToUpper().Contains(buscar.ToUpper()));
+        articulosTabla = query.ToList();
+
+        espera = false;
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            Buscar();
+        }
+    }
+}

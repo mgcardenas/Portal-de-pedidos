@@ -1,0 +1,219 @@
+﻿@page "/UsuariosAlta"
+@page "/UsuariosAlta/{id:int}"
+@using Blazored.SessionStorage
+@using Blazored.Typeahead
+@using PortalDePedidos.Extensiones
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@using Microsoft.AspNetCore.Authorization
+@using PortalDePedidosShared.AuditoriasVM
+@using PortalDePedidosShared.UsuariosVM
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@inject ISessionStorageService _sessionStorageService;
+@inject UsuarioClienteService _usuarioService
+@inject DataWareHouseClienteService _dataWareHouseService
+@inject IJSRuntime js
+@inject NavigationManager navigation
+@inject AuditoriaClienteService _auditoriaService
+@attribute [Authorize(Roles = "Comercial")]
+
+<div class="my-scrollbar-page">
+
+    <div class="card card-primary">
+        <div class="card-header">            
+                <h3 class="card-title">Nuevo Usuario</h3>
+        </div>
+
+
+       
+
+        <EditForm Model="usuario" OnValidSubmit="Guardar">
+            <DataAnnotationsValidator />
+            <div class="card-body">
+                
+                <div class="form-group">
+                    <label>Nombre de Usuario</label>
+                    @if (nombreUsuarioExiste)
+                    {
+                        <input class="form-control modified invalid" @bind="@usuario.NombreUsuario" />
+                        <div class="validation-message">El Nombre de Usuario Ya Existe.</div>
+                    }else
+                    {
+                        <InputText class="form-control" @bind-Value="@usuario.NombreUsuario"></InputText>
+                        <ValidationMessage For="(()=> usuario.NombreUsuario)" />
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label>Nro. de Cliente en JDE</label>
+                    <select id="nroClienteJDE" class="form-control select2">
+                        <option value="">Seleccione un Nro. de Cliente</option>
+                        @foreach(var razon in razonSociales) {
+                            <option value="@razon.CodLibroDireccion">
+                                @razon.CodLibroDireccion - @razon.RazonSocial
+                            </option>
+                        }
+                    </select>
+                    <ValidationMessage For="(() => usuario.NroClienteJDE)" />
+                </div>
+
+
+
+                <div class="form-group">
+                    <label>Mail del Usuario</label>
+                    <InputText class="form-control" @bind-Value="@usuario.MailUsuario"></InputText>
+                <ValidationMessage For="(()=> usuario.MailUsuario)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <InputText class="form-control" type="password" @bind-Value="@usuario.Contrasena"></InputText>
+                <ValidationMessage For="(()=> usuario.Contrasena)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Repetir Contraseña</label>
+                    <InputText class="form-control" type="password" @bind-Value="@usuario.RepetirContrasena"></InputText>
+                <ValidationMessage For="(()=> usuario.RepetirContrasena)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Rol de Cuenta</label>
+                    <InputSelect class="form-control"  @bind-Value="@usuario.IdRol">
+                        <option value="0">Seleccione un Rol</option>
+                        @foreach(var rol in roles)
+                        {
+                            <option value="@rol.IdRol">@rol.NombreRol</option>
+                        }
+                    </InputSelect>
+                <ValidationMessage For="(()=> usuario.IdRol)" />
+                </div>
+
+                <div class="form-group">
+                    <label>Moneda</label>
+                    <InputSelect class="form-control" @bind-Value="@usuario.Moneda">
+                        
+                        <option value="0">Seleccione una moneda</option>
+
+                        <option value="PES">Pesos</option>
+
+                        <option value="USD">Dolares</option>
+                    </InputSelect>
+                    <ValidationMessage For="(()=> usuario.Moneda)" />
+                </div>
+
+            </div>
+
+            <div class="card-footer">
+                <button type="submit" class="btn btn-primary">Guardar</button>
+                <a href="/Usuarios" class="btn btn-primary">Volver</a>
+            </div>
+    
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int id { get; set; }
+
+    UsuarioAltaVM usuario = new();
+    public SesionUsuario sesionUsuario = new();
+    List<RolVM> roles = new();
+    List<RazonSocialVM> razonSociales = new();
+    RazonSocialVM razonSocialSelected = new();
+    List<RazonSocialVM> razonSocialesFiltradas = new();
+    public bool nombreUsuarioExiste = false;
+    public string buscarRazon = "";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        sesionUsuario = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+        roles = await _usuarioService.GetRol();
+        razonSociales = await _dataWareHouseService.GetAllRazonSocial();
+        razonSocialesFiltradas = razonSociales;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if(firstRender) {
+            var dotNetHelper = DotNetObjectReference.Create(this);
+            await js.InvokeVoidAsync("initializeSelect2","#nroClienteJDE",dotNetHelper);
+        }
+    }
+
+    [JSInvokable]
+    public void OnSelect2Change(string selectedValue) {
+        usuario.NroClienteJDE = string.IsNullOrEmpty(selectedValue) ? (int?)null : int.Parse(selectedValue);
+        StateHasChanged();
+    }
+
+    public async Task Guardar()
+    {
+        Console.WriteLine("Método Guardar invocado");
+        nombreUsuarioExiste = await _usuarioService.NombreUsuarioExiste(usuario.NombreUsuario);
+        if (!nombreUsuarioExiste)
+        {
+            if(await _usuarioService.GuardarNuevoUsuario(usuario))
+            {
+                await _auditoriaService.GuardarNuevaAuditoria(new AuditoriasVM()
+                    {
+                        idUsuario = sesionUsuario.Id,
+                        idOperacion = OperacionesManager.GetIdOperacion(Operacion.AltaUsuario),
+                        timestamps = DateTime.Now,
+                    });
+                var msj = "Se Guardo el Usuario " + usuario.NombreUsuario + " Correctamente!";
+                await js.InvokeVoidAsync("AlertaExito", msj);
+                //await Task.Delay(2000);
+                navigation.NavigateTo("/Usuarios");
+            }
+            else
+            {
+                var msj = "Algo fallo!, No se pudo guardar el nuevo usuario.";
+                await js.InvokeVoidAsync("AlertaFallo", msj);
+            }
+        }
+    }
+
+    private void OnInputChanged(ChangeEventArgs e)
+    {
+        buscarRazon = e.Value.ToString();
+        razonSocialesFiltradas = razonSociales.Where(x => x.RazonSocial.ToUpper().Contains(buscarRazon.ToUpper())).ToList();
+    }
+
+    private Task<IEnumerable<RazonSocialVM>> BuscarArticulos(string searchText)
+    {
+        // Filtrar la lista de artículos por el texto ingresado
+        var result = razonSociales.Where(a => a.CodLibroDireccion.ToString().Contains(searchText, StringComparison.OrdinalIgnoreCase) || a.RazonSocial.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(result);
+    }
+
+    // Método de búsqueda para el Typeahead
+    private Task<IEnumerable<RazonSocialVM>> BuscarClientes(string searchText)
+    {
+        var result = razonSociales.Where(x =>
+            x.RazonSocial.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+            x.CodLibroDireccion.ToString().Contains(searchText, StringComparison.OrdinalIgnoreCase));
+
+        return Task.FromResult(result);
+    }
+
+    // ConvertMethod: Convierte el objeto RazonSocialVM a int?
+    private RazonSocialVM ConvertToInt(RazonSocialVM item)
+    {
+        return item;
+    }
+}
+
+<script>
+    function initializeSelect2(selector, dotNetHelper) {
+        $(selector).select2({
+            placeholder: "Seleccione un Nro. de Cliente",
+            allowClear: true
+        }).on("change", function (e) {
+            var selectedValue = $(this).val();
+            dotNetHelper.invokeMethodAsync("OnSelect2Change", selectedValue);
+        });
+    }
+</script>

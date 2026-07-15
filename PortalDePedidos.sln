@@ -1,0 +1,47 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34622.214
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PortalDePedidos", "PortalDePedidos\PortalDePedidos.csproj", "{50304C5C-8FB1-4C16-AC5A-6022EDC7F71C}"
+	ProjectSection(ProjectDependencies) = postProject
+		{3DB6C6D8-4F54-454C-8EC2-8175A46BE727} = {3DB6C6D8-4F54-454C-8EC2-8175A46BE727}
+		{7BFC753E-2DA4-40F6-A975-A85DB2514555} = {7BFC753E-2DA4-40F6-A975-A85DB2514555}
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PortalDePedidosServidor", "PortalDePedidosServidor\PortalDePedidosServidor.csproj", "{C1DCD0F2-FA9B-4E98-B119-AE9E23729CFA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PortalDePedidosService", "PortalDePedidosService\PortalDePedidosService.csproj", "{7BFC753E-2DA4-40F6-A975-A85DB2514555}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PortalDePedidosShared", "PortalDePedidosModel\PortalDePedidosShared.csproj", "{3DB6C6D8-4F54-454C-8EC2-8175A46BE727}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{50304C5C-8FB1-4C16-AC5A-6022EDC7F71C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{50304C5C-8FB1-4C16-AC5A-6022EDC7F71C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{50304C5C-8FB1-4C16-AC5A-6022EDC7F71C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{50304C5C-8FB1-4C16-AC5A-6022EDC7F71C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C1DCD0F2-FA9B-4E98-B119-AE9E23729CFA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C1DCD0F2-FA9B-4E98-B119-AE9E23729CFA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C1DCD0F2-FA9B-4E98-B119-AE9E23729CFA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C1DCD0F2-FA9B-4E98-B119-AE9E23729CFA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7BFC753E-2DA4-40F6-A975-A85DB2514555}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7BFC753E-2DA4-40F6-A975-A85DB2514555}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7BFC753E-2DA4-40F6-A975-A85DB2514555}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7BFC753E-2DA4-40F6-A975-A85DB2514555}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3DB6C6D8-4F54-454C-8EC2-8175A46BE727}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3DB6C6D8-4F54-454C-8EC2-8175A46BE727}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3DB6C6D8-4F54-454C-8EC2-8175A46BE727}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3DB6C6D8-4F54-454C-8EC2-8175A46BE727}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B53F9D82-85D8-4E62-A0F0-E261FF3D4980}
+	EndGlobalSection
+EndGlobal

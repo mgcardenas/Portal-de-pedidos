@@ -1,0 +1,29 @@
+﻿@using PortalDePedidos.Extensiones
+@inject IJSRuntime JSRuntime
+@inject AppSettings _appSettings
+
+<div class="g-recaptcha" data-sitekey="6LdXVmEqAAAAADuGZWx60PCX8INI6JC_rVT-n6pY" @ref="captchaRef"></div>
+ 
+
+@code {
+    private ElementReference captchaRef;
+
+    // public async Task<string> GetCaptchaResponseAsync()
+    // {
+    //     return await JSRuntime.InvokeAsync<string>("getReCaptchaToken");
+    //     //return await JSRuntime.InvokeAsync<string>("grecaptcha.getResponse", captchaRef);
+    // }
+
+    public async Task<string> GetCaptchaResponseAsync(string action)
+    {
+        return await JSRuntime.InvokeAsync<string>("getReCaptchaToken", action);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            //await JSRuntime.InvokeVoidAsync("grecaptcha.render", captchaRef, new { sitekey = "6Leg9-IpAAAAAJrAqLScg74r5_E12O2iXmwMLxWg" });
+        }
+    }
+}

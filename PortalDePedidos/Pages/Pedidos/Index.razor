@@ -1,0 +1,83 @@
+﻿
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@using PortalDePedidosShared.SeguimientoPedidosVM
+@using PortalDePedidosShared.UsuariosVM
+@using Blazorise.DataGrid
+@using Blazorise
+@using Blazored.SessionStorage
+@using PortalDePedidos.Extensiones
+@using ClosedXML.Excel
+@inject DataWareHouseClienteService _dataWarehouseService
+@inject UsuarioClienteService _usuarioService
+@inject IJSRuntime JSRuntime
+@inject ExcelService _excelService
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@inject ISessionStorageService _sessionStorageService;
+@inject SeguimientoPedidosContainer _seguimientoPedidosContainer
+@inject NavigationManager navigation
+
+@* <h1>Seguimiento de Pedidos</h1> *@
+@* <h2>Filtros: @filtro.CodCliente - @filtro.FechaDesde - @filtro.FechaHasta - @filtro.Estado</h2> *@
+<div class="my-scrollbar-page">
+    <div class="card card-primary card-tabs mt-2">
+        <div class="card-header p-0 pt-1">
+            <ul class="nav nav-tabs" id="custom-tabs-one-tab" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" id="tab-seguimiento-tab" data-toggle="pill" href="#tab-seguimiento" role="tab" aria-controls="tab-seguimiento" aria-selected="true">Seguimiento de Pedidos</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="tab-facturas-tab" data-toggle="pill" href="#tab-facturas" role="tab" aria-controls="tab-facturas" aria-selected="false">Facturas</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="tab-estadistica-tab" data-toggle="pill" href="#tab-estadistica" role="tab" aria-controls="tab-estadistica" aria-selected="false">Estadísticas</a>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body">
+            <div class="tab-content" id="custom-tabs-one-tabContent">
+                <div class="tab-pane fade active show" id="tab-seguimiento" role="tabpanel" aria-labelledby="tab-seguimiento-tab">
+                    <SeguimientoPedidos></SeguimientoPedidos>   
+                </div>
+                <div class="tab-pane fade" id="tab-facturas" role="tabpanel" aria-labelledby="tab-facturas-tab">
+                    <PortalDePedidos.Pages.Facturas.FacturasIndex></PortalDePedidos.Pages.Facturas.FacturasIndex>
+                </div>
+                <div class="tab-pane fade" id="tab-estadistica" role="tabpanel" aria-labelledby="tab-estadistica-tab">
+                    <PortalDePedidos.Pages.Estadistica.EstadisticaArticulos></PortalDePedidos.Pages.Estadistica.EstadisticaArticulos>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@code {
+    List<SeguimientoPedidoVM> seguimientoPedidos = new();
+    List<UsuarioVM> clientes = new();
+    FiltroSeguimientoPedidos filtro = new();
+    public bool espera = false;
+    SesionUsuario sesionUsuario = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        sesionUsuario = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+        if (sesionUsuario == null)
+        {
+            await JSRuntime.InvokeVoidAsync("AlertaArticulo", "Error: Usuario no encontrado.");
+            return;
+        }
+
+        if (_seguimientoPedidosContainer.cliente == null && sesionUsuario.Rol == "Comercial")
+        {
+            var msj = "¡Debe seleccionar un cliente antes de consultar sus seguimientos de pedido!";
+            await JSRuntime.InvokeVoidAsync("AlertaArticulo", msj);
+            navigation.NavigateTo("/SeguimientoPedidosTablaClientes");
+            return;
+        }
+
+    }
+
+
+
+}

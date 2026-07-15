@@ -1,0 +1,288 @@
+﻿@page "/UsuariosEditar/{id:int}"
+@using Blazored.SessionStorage
+@using PortalDePedidos.Extensiones
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@using Microsoft.AspNetCore.Authorization
+@using PortalDePedidosShared.AuditoriasVM
+@using PortalDePedidosShared.UsuariosVM
+@using PortalDePedidosShared.LoginVM
+@using PortalDePedidosShared.DataWhereHouse
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@inject ISessionStorageService _sessionStorageService;
+@inject UsuarioClienteService _usuarioService
+@inject LogInClienteService _loginService
+@inject AuditoriaClienteService _auditoriaService
+@inject IJSRuntime js
+@inject NavigationManager navigation
+@attribute [Authorize(Roles = "Comercial")]
+
+<div class="my-scrollbar-page">
+
+    @if (espera)
+    {
+
+        <div style="display:flex;align-items:center;justify-content:center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+    }
+
+    <div class="card card-primary m-1">
+        <div class="card-header">
+            <h3 class="card-title">Editar Usuario</h3>
+        </div>
+
+        <EditForm Model="usuario" OnValidSubmit="Guardar">
+            <DataAnnotationsValidator />
+
+            <div class="card-body">
+                <div class="row">
+
+                    <div class="col-6 mr-4">
+                        <h3>Información del Usuario</h3>
+                        <br />
+
+                        <div class="form-group row">
+                            <label class="col-5">Cliente Habilitado Para Ingresar al Portal </label>
+                            <InputCheckbox class="form-check col-1" @bind-Value="@usuario.HabilitadoParaIngresar"></InputCheckbox>
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Nombre de Usuario</label>
+                            <InputText readOnly class="form-control" @bind-Value="@usuario.NombreUsuario"></InputText>
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Nro. de Usuario en JDE</label>
+                            <InputText readOnly class="form-control" @bind-Value="@usuario.NroClienteJDE"></InputText>
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Razon Social</label>
+                            <InputText readOnly class="form-control" @bind-Value="@usuario.RazonSocial"></InputText>
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Mail del Usuario</label>
+                            <InputText class="form-control" @bind-Value="@usuario.MailUsuario"></InputText>
+                            <ValidationMessage For="(()=> usuario.MailUsuario)" />
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Ultimo ingreso al Sistema</label>
+                            <InputText readOnly class="form-control" @bind-Value="@usuario.FechaUltimoIngreso"></InputText>
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Rol de Cuenta</label>
+                            <InputSelect class="form-control" @bind-Value="@usuario.IdRol">
+                                <option value="0">Seleccione un Rol</option>
+                                @foreach (var rol in roles)
+                                {
+                                    <option value="@rol.IdRol">@rol.NombreRol</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="(()=> usuario.IdRol)" />
+                        </div>
+                    </div>
+
+
+                    <div class="col">
+                        <h3>Configuración de Pedidos</h3>
+                        <br />
+                        @* <div class="form-group row">
+                            <label class="col-4">Cliente Habilitado Para Pedidos</label>
+                            <InputCheckbox class="form-check col-1" @bind-Value="@usuario.HabilitadoPedidos"></InputCheckbox>
+                        </div> *@
+
+                        <div class="form-group row">
+                            <label>Zona de Venta Asignada</label>
+                            <InputSelect class="form-control" @bind-Value="@usuario.AreaVenta">
+
+                                <option value="@AreaDeVenta.Nulo">Seleccione una Opcion</option>
+                                <option value="@AreaDeVenta.ComodoroRivadavia">Comodoro Rivadavia</option>
+                                <option value="@AreaDeVenta.PicoTruncado">Pico Truncado</option>
+
+                            </InputSelect>
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Flete Enviado por</label>
+                            <InputSelect class="form-control" @bind-Value="@usuario.FleteEnviadoPor">
+
+                                <option value="@FleteEnviadoPor.PCR">PCR S.A.</option>
+                                <option value="@FleteEnviadoPor.CLIENTE">Cliente</option>
+
+                            </InputSelect>
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Flete Abonado en</label>
+                            <InputSelect class="form-control" @bind-Value="@usuario.FleteAbonadoEn">
+
+                                <option value="@FleteAbonadoEn.PCR">Origen (PCR S.A.)</option>
+                                <option value="@FleteAbonadoEn.LugarDeEntrega">Destino (Lugar de entrega)</option>
+
+                            </InputSelect>
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Destino por Defecto</label>
+                            <InputSelect class="form-control" @bind-Value="@usuario.CodZona">
+                                <option value="">Seleccione un Destino</option>
+                                @if(zonas.Count > 0)
+                                {
+                                    @foreach (var zona in zonas)
+                                    {
+                                        <option value="@zona.CodigoZona">(@zona.CodigoZona) @zona.Descripcion</option>
+                                    }
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Moneda</label>
+                            <InputSelect class="form-control" @bind-Value="@usuario.Moneda">
+
+                                <option value="0">Seleccione una moneda</option>
+
+                                <option value="PES">Pesos</option>
+
+                                <option value="USD">Dolares</option>
+                            </InputSelect>
+                            <ValidationMessage For="(()=> usuario.Moneda)" />
+                        </div>
+
+                        <br />
+                        @* <div class="form-group row">
+                            <label class="col-4">Habilitar campo de carga OC</label>
+                            <InputCheckbox class="form-check col-1" @bind-Value="@usuario.HabilitadoCampoDeCargaOC"></InputCheckbox>
+                        </div> *@
+                    </div>
+
+                </div>
+                
+                
+            </div>
+
+            <div class="card-footer">
+                <button type="submit" disabled="@enviado" class="btn btn-primary">Guardar</button>
+                <a href="/Usuarios" class="btn btn-primary">Volver</a>
+            </div>
+    
+        </EditForm>
+    </div>
+
+    <div class="card card-primary">
+
+        <div class="card-header">
+            <h3 class="card-title">Cambiar Contraseña</h3>
+        </div>
+
+        <EditForm Model="recuperaVM" OnValidSubmit="Recuperar">
+            <div class="card-body">
+                <DataAnnotationsValidator />
+                <div class=" row">
+
+                    <div class="input-group col-6">
+                   
+                            <InputText @bind-Value="@recuperaVM.Contrasena" type="password" class="form-control" placeholder="Contraseña Nueva"></InputText>
+                    
+                        <div class="input-group-append">
+                            <div class="input-group-text">
+                                <span class="fas fa-lock"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <ValidationMessage For="(()=> recuperaVM.Contrasena)" />
+                <div class="row">
+
+                    <div class="input-group col-6 mt-3">
+                   
+                            <InputText @bind-Value="@recuperaVM.ConfirmarContrasena" type="password" class="form-control" placeholder="Confirmar Contraseña"></InputText>
+                    
+                        <div class="input-group-append">
+                            <div class="input-group-text">
+                                <span class="fas fa-lock"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <ValidationMessage For="(()=> recuperaVM.ConfirmarContrasena)" />
+
+            </div>
+
+            <div class="card-footer">
+                <button type="submit" disabled="@enviado" class="btn btn-primary">Cambiar contraseña</button>
+            </div>
+        </EditForm>
+
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int id { get; set; }
+    public SesionUsuario sesionUsuario = new();
+    UsuarioEditarVM usuario = new();
+    RecuperarContrasenaVM recuperaVM = new();
+    List<RolVM> roles = new();
+    List<Zona> zonas = new();
+    public bool enviado = false;
+    public bool espera = false;
+    protected override async Task OnInitializedAsync()
+    {
+        sesionUsuario = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+        espera = true;
+        roles = await _usuarioService.GetRol();
+        usuario = await _usuarioService.GetUsuarioEditar(id);
+        recuperaVM.Id = usuario.IdUsuario;
+        zonas = await _usuarioService.GetZonas();
+        espera = false;
+    }
+
+    public async Task Guardar()
+    {
+        enviado = true;
+        if(await _usuarioService.ActualizarUsuario(usuario))
+        {
+            await _auditoriaService.GuardarNuevaAuditoria(new AuditoriasVM()
+            {
+            idUsuario = sesionUsuario.Id,
+            idOperacion = OperacionesManager.GetIdOperacion(Operacion.EditarUsuario),
+            timestamps = DateTime.Now,
+            });
+            var msj = "Se actualizó el Usuario " + usuario.NombreUsuario + " Correctamente!";
+            await js.InvokeVoidAsync("AlertaExito", msj);
+            //navigation.NavigateTo("/Usuarios");
+        }
+        else
+        {
+            var msj = "Algo fallo!, No se pudo actualizar el usuario.";
+            await js.InvokeVoidAsync("AlertaFallo", msj);
+        }
+        enviado = false;
+    }
+
+    public async Task Recuperar()
+    {
+        recuperaVM.ContrasenaAnterior = "";
+        enviado = true;
+
+        if (await _loginService.RecuperarContrasena(recuperaVM))
+        {
+            var msj = $"Se cambio la contraseña del usuario {usuario.NombreUsuario} correctamente!";
+            await js.InvokeVoidAsync("AlertaExito", msj);
+        }
+        else
+        {
+            var msj = "Fallo el cambio de contraseña!";
+            await js.InvokeVoidAsync("AlertaFallo", msj);
+        }
+        enviado = false;
+    }
+}

@@ -1,0 +1,546 @@
+﻿@page "/IngresoPedidos"
+ @using Microsoft.AspNetCore.Authorization
+ @using System.Security.Claims;
+ @using Blazored.SessionStorage;
+ @using PortalDePedidosModel;
+ @using PortalDePedidos;
+@using PortalDePedidosService
+@using PortalDePedidosShared.ComprasAnticipadasPendientesVM
+ @using PortalDePedidosShared.UsuariosVM;
+ @using PortalDePedidosShared.IngresoPedidosVM;
+ @using PortalDePedidos.Extensiones;
+ @using Microsoft.AspNetCore.Components.Authorization
+@using System.Text.Json
+@attribute [Authorize]
+@inject ISessionStorageService _sessionStorageService;
+@inject IJSRuntime js
+@inject DataWareHouseClienteService _dataWareHouseService
+@inject UsuarioClienteService _usuarioService
+@inject CarritoPedidosContainer _carritoPedidos
+@inject ComprasAnticipadasPendientesContainer _comprasAnticipadasPendientesContainer
+@inject NavigationManager navigation
+
+<div class="my-scrollbar-page">
+
+    @if (espera)
+    {
+
+        <div style="display:flex;align-items:center;justify-content:center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+    }
+
+    <div class="card card-primary mt-2">
+
+        <div class="card-header">
+            @if (_carritoPedidos.IngresoPedidoVM.cliente != null)
+            {
+                <h3 class="card-title">Ingreso de Pedido para @_carritoPedidos.IngresoPedidoVM.cliente.nombreUsuario</h3>
+            }
+        </div>
+
+        <div class="card-body">
+
+            <div class="form-group row" style="align-items:center">
+                <label class="col-1" style="text-align:right;align-items:center">Retiro en</label>
+                @if (espera)
+                {
+                    <div class="col-3"></div>
+                }
+                else
+                {
+                    @if (hayRetiro)
+                    {
+                        <div class="col-3">
+                            @* Probar cambio *@
+                            @if (_carritoPedidos.IngresoPedidoVM.EsCompraAnticipada)
+                            {
+                                <select class="form-control" disabled @bind="@_carritoPedidos.retiroEn" @onclick="CambiarRetiro">
+
+                                    <option value="">Seleccione una opción</option>
+                                    <option value="@RetiroEn.Comodoro">Comodoro Rivadavia</option>
+                                    <option value="@RetiroEn.PicoTruncado">Pico Truncado</option>
+
+                                </select>
+                            }
+                            else
+                            {
+                                <select class="form-control" @bind="@_carritoPedidos.retiroEn" @onclick="CambiarRetiro">
+
+                                    <option value="">Seleccione una opción</option>
+                                    <option value="@RetiroEn.Comodoro">Comodoro Rivadavia</option>
+                                    <option value="@RetiroEn.PicoTruncado">Pico Truncado</option>
+
+                                </select>
+                            }
+                        </div>
+                    }else{
+                        <div class="col-3">
+                            <select class="form-control  modified invalid" @bind="@_carritoPedidos.retiroEn" @onclick="CambiarRetiro">
+
+                            <option value="">Seleccione una opción</option>
+                            <option value="@RetiroEn.Comodoro">Comodoro Rivadavia</option>
+                            <option value="@RetiroEn.PicoTruncado">Pico Truncado</option>
+
+                        </select>
+                        <div class="validation-message">Seleccione un lugar de retiro para ver los artículos.</div>
+                        </div>
+                    }
+                }
+                <div class="col-2" style="text-align:left;align-content:center">
+                    <p > @totalArticulos artículos disponibles</p>
+                </div>
+
+                <div class="col-1"></div>
+
+                @if (!_carritoPedidos.IngresoPedidoVM.EsCompraAnticipada)
+                {
+
+                    <div class="col">
+                        <div class="input-group">
+                            <input class="form-control" type="search" placeholder="Buscar por descripción o código de artículo" aria-label="Search" @bind="@buscar" @onkeyup="HandleKeyPress"></input>
+                            <div class="input-group-append">
+                                <button class="btn" @onclick="Buscar">
+                                    <i class="fas fa-search fa-fw"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (_carritoPedidos.IngresoPedidoVM.EsCompraAnticipada)
+            {
+                @foreach (var articulo in articulosSG)
+                {
+                    <div class="card">
+                        <div class="card-body">
+                            @* //articulo *@
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="row" style="align-content:center">
+                                        <div class="col col-1" style="align-content:center; align-items:center">
+                                            @if (articulo.Imagen != null)
+                                            {
+                                                <img src="@($"data:image/png;base64,{articulo.Imagen}")" alt="Imagen del Artículo" width="60" height="60" />
+                                            }
+                                            else
+                                            {
+                                                <img src="/imagenes/productos/sinimagen.jpg" alt="Imagen del Artículo" width="60" height="60" />
+                                            }
+                                        </div>
+
+                                        <div class="col col-4" style="align-content:center">
+                                            <p>
+                                                <strong>@articulo.CodArticulo</strong> - @articulo.Descripcion
+                                                -  @articulo.SubCategoria
+                                            </p>
+                                        </div>
+
+                                        <div class="col col-1" style="align-content:center">
+                                            <label class="col" style=" text-align:right">Cantidad </label>
+                                        </div>
+
+                                        <div class="col col-1 mr-1" style="align-content:center">
+                                            <input class="form-control" min="0" type="number" @bind="articulo.Cantidad" />
+                                        </div>
+
+                                        <div class="col col-1" style="align-content:center">
+
+                                            <p style=" text-align:left"> @articulo.UnidadDeMedida </p>
+
+                                        </div>
+
+                                        <div class="col col-1" style="align-content:center">
+                                            <button class="btn btn-primary " disabled="@(articulo.Cantidad <= 0)" @onclick="@(() => AgregarAlCarrito(articulo))" data-toggle="tooltip" title="Agregar artículo al carrito">
+                                                <i class="fas fa-cart-plus fa-lg mr-2"></i>
+                                            </button>
+                                        </div>
+
+                                        <div class="col col-2" style="align-content:center">
+                                            <p style=" text-align:left"> Total @Math.Round(articulo.CalcularTN(), 2) TN</p>
+
+                                            <p style=" text-align:left"> @articulo.unidadesTotales Unidades</p>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            @* finArticulo *@
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                @foreach (var categoria in articulosPorCategoria)
+                {
+                    @* <div>
+                        <p>@categoria.Key - Artículos: @categoria.Count()</p>
+                    </div> *@
+                    <div id="accordion-@categoria.Key.Replace(" ", string.Empty)">
+                        <div class="card">
+                            <div class="card-header" id="card-@categoria.Key.Replace(" ", string.Empty)">
+                                <h5 class="mb-0">
+                                    <button class="btn btn-link" data-bs-toggle="collapse" data-bs-target="#@categoria.Key.Replace(" ", string.Empty)" aria-expanded="true" aria-controls="@categoria.Key.Replace(" ", string.Empty)">
+                                        <h4>@categoria.Key</h4>
+                                    </button>
+                                </h5>
+                            </div>
+
+                            <div id="@categoria.Key.Replace(" ", string.Empty)" class="collapse" aria-labelledby="headingOne" data-parent="#accordion-@categoria.Key.Replace(" ", string.Empty)">
+                                @* Subcategorias *@
+                                @if (TieneSubCategoria(categoria))
+                                {
+                                
+                                    foreach(var subCategoria in ArticulosConSubCategoria(categoria))
+                                    {
+                                        @* <div>
+                                            <p>@subCategoria.Key - Artículos: @subCategoria.Count()</p>
+                                        </div> *@
+                                        <div id="accordion-@subCategoria.Key.Replace(" ", string.Empty)">
+                                            <div class="card m-3">
+                                                <div class="card-header" id="card-@subCategoria.Key.Replace(" ", string.Empty)">
+                                                    <h5 class="mb-0">
+                                                        <button class="btn btn-link" data-bs-toggle="collapse" data-bs-target="#@subCategoria.Key.Replace(" ", string.Empty)" aria-expanded="true" aria-controls="@subCategoria.Key.Replace(" ", string.Empty)">
+                                                            <h4>@subCategoria.Key</h4>
+                                                        </button>
+                                                    </h5>
+                                                </div>
+
+                                                <div id="@subCategoria.Key.Replace(" ", string.Empty)" class="collapse" aria-labelledby="headingOne" data-parent="#accordion-@subCategoria.Key.Replace(" ", string.Empty)">
+                                               
+
+                                                    <div class="card-body">
+                                                        @foreach (var articulo in subCategoria)
+                                                        {
+                                                            //Muestra articulo si es comercial si es rubro exclusivo y el usuario es del rubro
+                                                            //@if ((sesionUsuario.Rol == "Comercial") || (articulo.RubrosExclusivos.Count > 0 && articulo.RubrosExclusivos.Any(x=> x.CodRubroCliente == sesionUsuario.CodRubroCliente)))
+                                                            //{
+                                                                //articulo
+                                                                <div class="card">
+                                                                    <div class="card-body">
+                                                                        <div class="row" style="align-content:center">
+                                                                            <div class="col col-1" style="align-content:center; align-items:center">
+                                                                                @if (articulo.Imagen != null)
+                                                                                {
+                                                                                    <img src="@($"data:image/png;base64,{articulo.Imagen}")" alt="Imagen del Artículo" width="60" height="60" />
+                                                                                }
+                                                                                else
+                                                                                {
+                                                                                    <img src="/imagenes/productos/sinimagen.jpg" alt="Imagen del Artículo" width="60" height="60" />
+                                                                                }
+                                                                            </div>
+
+                                                                            <div class="col col-4" style="align-content:center">
+                                                                                <p>
+                                                                                    <strong>@articulo.CodArticulo</strong> - @articulo.Descripcion
+                                                                                    -  @articulo.SubCategoria
+                                                                                </p>
+                                                                            </div>
+
+                                                                            <div class="col col-1" style="align-content:center">
+                                                                                <label class="col" style=" text-align:right">Cantidad </label>
+                                                                            </div>
+
+                                                                            <div class="col col-1 mr-1" style="align-content:center">
+                                                                                <input class="form-control" min="0" type="number" @bind="articulo.Cantidad" />
+                                                                            </div>
+
+                                                                            <div class="col col-1" style="align-content:center">
+
+                                                                                <p style=" text-align:left"> @articulo.UnidadDeMedida </p>
+
+                                                                            </div>
+
+                                                                            <div class="col col-1" style="align-content:center">
+                                                                                <button class="btn btn-primary " disabled="@(articulo.Cantidad <= 0)" @onclick="@(() => AgregarAlCarrito(articulo))" data-toggle="tooltip" title="Agregar artículo al carrito">
+                                                                                    <i class="fas fa-cart-plus fa-lg mr-2"></i>
+                                                                                </button>
+                                                                            </div>
+
+                                                                            <div class="col col-2" style="align-content:center">
+                                                                                <p style=" text-align:left"> Total @Math.Round(articulo.CalcularTN(), 2) TN</p>
+
+                                                                                <p style=" text-align:left"> @articulo.unidadesTotales Unidades</p>
+
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                //finArticulo
+                                                            //}
+                                                        }
+                                                    </div>
+                                                
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                                @*Fin Subcategorias *@
+                                else{
+
+                                <div class="card-body">
+                                    @foreach (var articulo in categoria)
+                                    {
+                                            //Muestra articulo si es comercial o si es rubro exclusivo y el usuario es del rubro
+                                            //@if ((sesionUsuario.Rol == "Comercial") || (articulo.RubrosExclusivos.Count > 0 && articulo.RubrosExclusivos.Any(x => x.CodRubroCliente == sesionUsuario.CodRubroCliente)))
+                                            //{
+                                                //articulo
+                                               <div class="card"> 
+                                                   <div class="card-body">
+                                                        <div class="row" style="align-content:center">
+                                                            <div class="col col-1" style="align-content:center; align-items:center">
+                                                                @if (articulo.Imagen != null)
+                                                                {
+                                                                    <img src="@($"data:image/png;base64,{articulo.Imagen}")" alt="Imagen del Artículo" width="60" height="60" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    <img src="/imagenes/productos/sinimagen.jpg" alt="Imagen del Artículo" width="60" height="60" />
+                                                                }
+                                                            </div>
+
+                                                            <div class="col col-4" style="align-content:center">
+                                                            <p ><strong>@articulo.CodArticulo</strong> - @articulo.Descripcion </p>
+                                                            </div>
+
+                                                            <div class="col col-1" style="align-content:center">
+                                                                <label class="col" style=" text-align:right">Cantidad </label>
+                                                            </div>
+
+                                                            <div class="col col-1 mr-1" style="align-content:center">
+                                                                <input class="form-control" min="0" type="number" @bind="articulo.Cantidad" />
+                                                            </div>
+
+                                                            <div class="col col-1" style="align-content:center">
+                                                    
+                                                                <p style=" text-align:left"> @articulo.UnidadDeMedida </p>
+                                                    
+                                                            </div>
+
+                                                            <div class="col col-1" style="align-content:center">
+                                                                <button class="btn btn-primary " disabled="@(articulo.Cantidad <= 0)" @onclick="@(() => AgregarAlCarrito(articulo))" data-toggle="tooltip" title="Agregar artículo al carrito">
+                                                                    <i class="fas fa-cart-plus fa-lg mr-2"></i>
+                                                                </button>
+                                                            </div>
+
+                                                            <div class="col col-2" style="align-content:center">
+                                                                <p style=" text-align:left"> Total @Math.Round(articulo.CalcularTN(),2) TN</p>
+                                                    
+                                                                <p style=" text-align:left"> @articulo.unidadesTotales Unidades</p>
+                                                    
+                                                                @* <p style=" text-align:left"> Total @articulo.CalcularUNTotales() Unidades</p> *@
+                                                            </div>
+                                                       </div>
+                                                   </div>
+                                               </div>
+                                               //finArticulo
+                                            //}
+                                    }
+                                </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                
+                }
+            }
+        </div>
+    </div> 
+</div>
+
+@code {
+
+    // public RetiroEn? retiro ;
+
+    public SesionUsuario sesionUsuario = new();
+    public List<ArticuloIngresoPedidoVM> articulos = new();
+    public List<ArticuloIngresoPedidoVM> articulosSG = new();
+    private List<IGrouping<string, ArticuloIngresoPedidoVM>> articulosPorCategoria = new();
+    public bool espera = false;
+    public int totalArticulos = 0;
+    public string buscar = "";
+    public bool hayRetiro = false;
+    protected override async Task OnInitializedAsync()
+    {
+        espera = true;
+        sesionUsuario = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+        //si es un cliente o comprador se asigna al carrito de compras
+        if (sesionUsuario.Rol != "Comercial" && _carritoPedidos.IngresoPedidoVM.cliente == null)
+            _carritoPedidos.IngresoPedidoVM.cliente = await _usuarioService.GetUsuarioJDE(sesionUsuario.Id,sesionUsuario.NroUsuarioJDE);
+
+        if (_carritoPedidos.IngresoPedidoVM.cliente == null && !_carritoPedidos.IngresoPedidoVM.EsCompraAnticipada)
+        {
+            var msj = "Debe seleccionar un cliente antes de realizar el pedido!";
+            navigation.NavigateTo("/IngresoPedidosTablaUsuarios");
+        }
+        else
+        {
+            _carritoPedidos.IngresoPedidoVM.idUsuario = sesionUsuario.Id;
+
+            if(_carritoPedidos.articulosTodos.Count > 0)
+            {
+                articulos = _carritoPedidos.articulosTodos;
+            }
+            else
+            {
+                articulos = (await _dataWareHouseService.GetArticulosIngreso()).OrderBy(x=> x.CodArticulo).ToList();
+                _carritoPedidos.articulosTodos = articulos;
+            }
+        }
+
+        //llenar tabla de articulo de ingreso pedidos
+        if (_carritoPedidos.IngresoPedidoVM.EsCompraAnticipada)
+        {
+            LlenoDatosSG();
+        }
+        else
+        {
+            CambiarRetiro();
+        }
+        espera = false;
+    }
+
+    public async Task AgregarAlCarrito(ArticuloIngresoPedidoVM articulo)
+    {
+        var validacion = _carritoPedidos.ValidarArticulo(articulo);
+        if (_carritoPedidos.IngresoPedidoVM.EsCompraAnticipada)
+        {
+            var valSH =await ValidarCantidadSH(articulo);
+            if (!valSH) return;
+        }
+        if (validacion.sePuedeAgregar)
+        {
+            var articuloNuevo = JsonSerializer.Deserialize<ArticuloIngresoPedidoVM>(
+            JsonSerializer.Serialize(articulo));
+            _carritoPedidos.AgregarArticulo(articuloNuevo);
+            await js.InvokeVoidAsync("AlertaArticulo", validacion.msj);
+        }
+        else
+        {
+            await js.InvokeVoidAsync("AlertaFallo", validacion.msj);
+        }
+        articulo.Cantidad = 0;
+    }
+
+
+    private async Task<bool> ValidarCantidadSH(ArticuloIngresoPedidoVM articulo)
+    {
+        var SH = _carritoPedidos.IngresoPedidoVM.seleccionadosSG.FirstOrDefault(x => x.CodArticulo == articulo.CodArticulo);
+        var UNSH = SH.Um.Trim();
+        var cantidadSH = SH.CantPendienteNum;
+        articulo.CalcularUNTotal();
+        var cantidadPedida = articulo.unidadesTotales;
+
+        if(cantidadPedida > cantidadSH)
+        {
+            var msj = $"La cantidad ingresada supera la cantidad disponible en SH. Cantidad disponible: {cantidadSH} {UNSH}";
+            await js.InvokeVoidAsync("AlertaFallo", msj);
+            return false;
+        }
+        return true;
+    }
+    public void LlenoDatosSG()
+    {
+        //Si es compra anticipada se hace con los siguientes datos
+        
+        _carritoPedidos.IngresoPedidoVM.cliente = _comprasAnticipadasPendientesContainer.cliente;
+        var articulosCA = _carritoPedidos.IngresoPedidoVM.seleccionadosSG.Select(x => x.CodArticulo).ToList();
+        articulosSG = articulos.Where(x => articulosCA.Contains(x.CodArticulo)).ToList();
+        var codAreaCR = _carritoPedidos.IngresoPedidoVM.seleccionadosSG.First().Ceco.Substring(0, 3);
+        var codAreaPTDO = _carritoPedidos.IngresoPedidoVM.seleccionadosSG.First().Ceco.Substring(0, 4);
+
+        if (codAreaCR == "CRD")
+        {
+            _carritoPedidos.retiroEn = RetiroEn.Comodoro;
+        }
+        else if (codAreaPTDO == "PTDO")
+        {
+            _carritoPedidos.retiroEn = RetiroEn.PicoTruncado;
+        }
+        hayRetiro = true;
+        totalArticulos = articulosSG.Count;
+        _carritoPedidos.IngresoPedidoVM.ActualizarDatosPedido(1);
+    }
+
+    public void CambiarRetiro()
+    {
+        if(_carritoPedidos.retiroEn != null)
+        {
+
+            hayRetiro = true;
+            espera = true;
+            var aux = articulos.Where(x => (x.CodPlanta == RetiroManager.GetCod((RetiroEn)_carritoPedidos.retiroEn) || 
+                                            x.CodPlanta == RetiroManager.GetCod(RetiroEn.Ambas) )
+                                            //verifico articulo exclusivo comercial
+                                            && (!x.VisibleSoloComercial || (x.VisibleSoloComercial && sesionUsuario.Rol == "Comercial"))
+                                            //verifico articulo excusivo por rubro
+                                            && ((x.RubrosExclusivos == null || x.RubrosExclusivos.Count <= 0) || (x.RubrosExclusivos.Any(x => x.CodRubroCliente == sesionUsuario.CodRubroCliente)) || (sesionUsuario.Rol == "Comercial"))
+                                            ).ToList();
+            totalArticulos = aux.Count;
+            articulosPorCategoria = aux.GroupBy(x => x.Categoria).ToList();
+            buscar = "";
+            espera = false;
+        }
+        else
+        {
+            hayRetiro = false;
+            articulosPorCategoria.Clear();
+            totalArticulos = 0;
+        }
+    }
+
+    public void Buscar()
+    {
+        espera = true;
+        if (hayRetiro)
+        {
+            if(buscar != "")
+            {
+
+                var query = articulos.AsQueryable();
+                query = query.Where(x => (x.Descripcion.ToUpper().Contains(buscar.ToUpper()) || x.CodArticulo.ToUpper().Contains(buscar.ToUpper())) 
+                && (x.CodPlanta == RetiroManager.GetCod((RetiroEn)_carritoPedidos.retiroEn) || x.CodPlanta == RetiroManager.GetCod(RetiroEn.Ambas))
+                //verifico articulo exclusivo comercial
+                && (!x.VisibleSoloComercial || (x.VisibleSoloComercial && sesionUsuario.Rol == "Comercial")) 
+                //verifico articulo excusivo por rubro
+                && ((x.RubrosExclusivos == null || x.RubrosExclusivos.Count <= 0) || (x.RubrosExclusivos.Any(x => x.CodRubroCliente == sesionUsuario.CodRubroCliente)) || (sesionUsuario.Rol == "Comercial") )
+                );
+                totalArticulos = query.Count();
+                var x = query.FirstOrDefault();
+                articulosPorCategoria = query.GroupBy(x => x.Categoria).ToList();
+            }
+            else
+            {
+                CambiarRetiro();
+            }
+        }
+
+        espera = false;
+    }
+
+    public List<IGrouping<string, ArticuloIngresoPedidoVM>> ArticulosConSubCategoria(IGrouping<string, ArticuloIngresoPedidoVM> articulos)
+    {
+        return articulos.GroupBy(x => x.SubCategoria).ToList();
+    }
+
+    public bool TieneSubCategoria(IGrouping<string, ArticuloIngresoPedidoVM> articulos)
+    {
+        var tieneSubCat = articulos.Any(x => !string.IsNullOrEmpty(x.SubCategoria));
+        return tieneSubCat;
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            Buscar();
+        }
+    }
+
+
+}

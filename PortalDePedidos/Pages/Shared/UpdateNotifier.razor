@@ -1,0 +1,46 @@
+﻿@inject IJSRuntime JS
+
+@if (updateAvailable)
+{
+    <div class="update-notifier">
+        <span>⚡ Hay una nueva versión disponible</span>
+        <button @onclick="Recargar">Actualizar</button>
+    </div>
+}
+
+@code {
+    private bool updateAvailable;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // preguntar a JS si hay nueva versión
+        updateAvailable = await JS.InvokeAsync<bool>("checkForNewVersion");
+    }
+
+    private async Task Recargar()
+    {
+        await JS.InvokeVoidAsync("location.reload", true);
+    }
+}
+
+<script>
+    async function checkForNewVersion() {
+        try {
+            // Traemos el archivo service-worker-assets.js que genera Blazor
+            const response = await fetch('_framework/blazor.boot.json', { cache: 'no-store' });
+            const latest = await response.json();
+
+            // Guardamos el hash en localStorage
+            const currentHash = localStorage.getItem('blazorHash');
+            if (currentHash && currentHash !== latest.cacheBootResourceHashes) {
+                return true; // hay nueva versión
+            }
+
+            localStorage.setItem('blazorHash', latest.cacheBootResourceHashes);
+            return false;
+        } catch (e) {
+            console.error("Error verificando nueva versión", e);
+            return false;
+        }
+    }
+</script>

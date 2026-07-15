@@ -1,0 +1,174 @@
+﻿@page "/OlvideContrasena"
+
+@layout LogInLayout
+@using PortalDePedidos.Extensiones
+@using PortalDePedidos.Pages.Shared
+@using PortalDePedidosShared
+@using PortalDePedidosShared.LoginVM
+@using PortalDePedidosService
+@inject AppSettings _appSettings
+@inject ReCaptchaClienteService recaptchaService
+@inject LogInClienteService loginService
+@inject NavigationManager navigation
+@inject IJSRuntime js
+
+    <div class="login-box">
+        <div class="card card-outline card-primary">
+            <div class="card-header text-center">
+                <img class="brand-image-xl " src="/imagenes/logo/logo_empresa.png" />
+                <p>Portal de Pedidos</p>
+            </div>
+            <div class="card-body">
+                <p class="login-box-msg">Escribe tu nombre de usuario registrado para recibir el link a tu cambio de contraseña en tu mail</p>
+                <EditForm Model="olvideContrasena" OnValidSubmit="Enviar">
+                    <DataAnnotationsValidator />
+                    <div class="input-group ">
+                        <InputText @bind-Value="@olvideContrasena.nombreUsuario" class="form-control" placeholder="Nombre de usuario"></InputText>
+                        <div class="input-group-append">
+                            <div class="input-group-text">
+                                <span class="fas fa-user"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <ValidationMessage For="(()=> olvideContrasena.nombreUsuario)" />
+
+                <div class="row mt-2">
+                    @* <ReCaptcha @ref="reCaptchaComponent"></ReCaptcha>
+
+                    <div class="g-recaptcha" data-sitekey="6LdAj3UqAAAAAAp5d8JjPOuI6rVo1hUW0TYLZQ1J" data-action="LOGIN"></div>
+                    *@
+                    <div>
+
+                        <ReCaptcha @ref="reCaptchaComponent"></ReCaptcha>
+
+                        <div class="g-recaptcha" data-sitekey="6LdAj3UqAAAAAAp5d8JjPOuI6rVo1hUW0TYLZQ1J" data-action="@action"></div>
+
+                    </div>
+                    @if (_appSettings.ReCaptcha)
+                    {
+
+                        <div id="recaptcha-container">
+                            <!-- Este div es donde se mostrará el widget de reCAPTCHA -->
+                        </div>
+
+                        @if (falloRecaptcha)
+                        {
+                            <p class="error text-danger">Complete el reCAPTCHA para ingresar</p>
+                        }
+                    }
+                </div>
+                    <div class="row mt-2">
+                        <div class="col-12">
+                            <button type="submit" disabled="@enviado" class="btn btn-primary btn-block">Pedir nueva contraseña</button>
+                        </div>
+
+                    </div>
+                </EditForm>
+                <p class="mt-3 mb-1">
+                    <a href="/">Ingresar</a>
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+@code {
+    public OlvideContrasenaVM olvideContrasena = new();
+    public bool enviado = false;
+    private bool falloRecaptcha = false;
+    private bool PasoRecaptcha = false;
+    private string? _captchaToken;
+    private ReCaptcha reCaptchaComponent = new();
+    private string action = "OLVIDECONTRASENA";
+
+    protected override async Task OnInitializedAsync()
+    {
+        //enviado = _appSettings.ReCaptcha;
+        PasoRecaptcha = !_appSettings.ReCaptcha;
+    }
+
+    // Inicializar reCAPTCHA en el método `OnAfterRenderAsync`
+    // protected override async Task OnAfterRenderAsync(bool firstRender)
+    // {
+    //     if (firstRender)
+    //     {
+    //         if (_appSettings.ReCaptcha)
+    //         {
+    //             await js.InvokeVoidAsync("initReCaptcha", DotNetObjectReference.Create(this));
+    //         }
+    //     }
+    // }
+
+    // // Método que se ejecuta cuando el usuario hace clic en el botón
+    // private async Task ValidateCaptcha()
+    // {
+    //     if (string.IsNullOrEmpty(_captchaToken))
+    //     {
+    //         //Console.WriteLine("Por favor, completa el reCAPTCHA.");
+    //         return;
+    //     }
+
+    //     // Envía el token a tu servidor para la validación
+    //     PasoRecaptcha = true;
+    //     await recaptchaService.Validar(_captchaToken);
+    // }
+
+    // // Recibir el token desde JavaScript
+    // [JSInvokable("SetCaptchaToken")]
+    // public async Task SetCaptchaToken(string token)
+    // {
+    //     _captchaToken = token;
+    //     await ValidateCaptcha();
+    // }
+
+    public async Task Enviar()
+    {
+        enviado = true;
+        olvideContrasena.path = navigation.BaseUri;
+
+        if (_appSettings.ReCaptcha)
+        {
+            var captchaResponse = await reCaptchaComponent.GetCaptchaResponseAsync(action);
+            PasoRecaptcha = await recaptchaService.Validar(captchaResponse, action);
+        }
+
+        if (PasoRecaptcha)
+        {
+            if(await loginService.OlvideContrasena(olvideContrasena))
+            {
+
+                //se implemento msj generico
+                var msj = "Si la cuenta existe, hemos enviado un correo para el restablecimiento de la contraseña.";
+                await js.InvokeVoidAsync("AlertaExito", msj);
+                //await Task.Delay(3000);
+                navigation.NavigateTo("/");
+            }
+            else
+            {
+                var msj = "Por motivos de seguridad, no se puede procesar su solicitud en este momento. Por favor, inténtelo nuevamente más tarde.";
+                await js.InvokeVoidAsync("AlertaFallo", msj);
+            }
+
+        }
+        else
+        {
+            falloRecaptcha = true;
+        }
+
+
+
+        enviado = false;
+    }
+}
+
+<script>
+    window.initReCaptcha = function (dotNetHelper) {
+        grecaptcha.render('recaptcha-container', {
+            'sitekey': '6LdAj3UqAAAAAAp5d8JjPOuI6rVo1hUW0TYLZQ1J', // Reemplaza TU_SITE_KEY con la clave de sitio de reCAPTCHA
+            'callback': function (token) {
+                // Llamar a Blazor para establecer el token
+                dotNetHelper.invokeMethodAsync('SetCaptchaToken', token);
+            }
+        });
+    };
+</script>

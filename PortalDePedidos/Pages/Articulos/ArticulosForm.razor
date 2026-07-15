@@ -1,0 +1,113 @@
+﻿@page "/ArticulosForm"
+@page "/ArticulosForm/{id:int}"
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@inject ArticuloClienteService _ejemploArticuloService
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Comercial")]
+
+<div class=" my-scrollbar-page">
+
+<div class="card card-primary">
+    <div class="card-header">
+        <h3 class="card-title">Nuevo/Editar</h3>
+    </div>
+
+
+    <form>
+        <div class="card-body">
+            <div class="form-group">
+                <label >Código de Item</label>
+                <input type="text" class="form-control"  placeholder="Código de Item">
+            </div>
+
+            <div class="form-group">
+                <label>Subcategoria del Item</label>
+                <select class="form-select">
+                    <option value="value"></option>
+                    <option value="value">1</option>
+                    <option value="value">2</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Subcategoria del Item</label>
+                <select class="form-select">
+                    <option value="value"></option>
+                    <option value="value">1</option>
+                    <option value="value">2</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Subcategoria del Item</label>
+                <select class="form-select">
+                    <option value="value"></option>
+                    <option value="value">1</option>
+                    <option value="value">2</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Subcategoria del Item</label>
+                <select class="form-select">
+                    <option value="value"></option>
+                    <option value="value">1</option>
+                    <option value="value">2</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Nombre del Item</label>
+                <input type="text" class="form-control" placeholder="Nombre del item">
+            </div>
+
+            <div class="form-group">
+                <label>Imagen</label>
+                <input type="file" class="form-control-file" >
+            </div>
+
+            <div class="form-group">
+                <label>Mínimo de Unidades</label>
+                <input type="number" class="form-control" >
+            </div>
+
+            <div class="form-group">
+                <label>Cantidad por Unidad</label>
+                <input type="number" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label>Peso por Unidad</label>
+                <input type="number" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label>Locacion del Item</label>
+                <select class="form-select">
+                    <option value="value">Seleccione la Locacion</option>
+                    <option value="value">1</option>
+                    <option value="value">2</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Almacen</label>
+                <select class="form-select">
+                    <option value="value">Seleccione un Almacen</option>
+                    <option value="value">1</option>
+                    <option value="value">2</option>
+                </select>
+            </div>
+
+        </div>
+
+        <div class="card-footer">
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </div>
+    </form>
+</div>
+</div>
+
+@code {
+    [Parameter]
+    public int id { get; set; }
+
+}

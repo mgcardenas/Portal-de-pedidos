@@ -1,0 +1,176 @@
+﻿@page "/Usuarios"
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@using PortalDePedidosShared.UsuariosVM
+@using Blazorise.DataGrid
+@using Blazorise
+@using Microsoft.AspNetCore.Authorization
+@* @using ClosedXML.Excel *@
+@attribute [Authorize(Roles = "Comercial")]
+@inject UsuarioClienteService _usuarioService
+@* @inject IJSRuntime JSRuntime
+@inject ExcelService _excelService *@
+
+
+<div class="my-scrollbar-page">
+    <div class="card card-primary mt-2">
+
+        <div class="card-header">
+            <h3 class="card-title">Administración de Usuarios</h3>
+        </div>
+
+        <div class="card-body">
+
+                <div class="input-group" >
+                <input class="form-control" type="search" placeholder="Buscar por nombre, nro de JDE o razon social" aria-label="Search" @bind="@buscar" @onkeyup="HandleKeyPress"></input>
+                    <div class="input-group-append">
+                        <button class="btn" @onclick="Buscar">
+                            <i class="fas fa-search fa-fw"></i>
+                        </button>
+                    </div>
+                </div>
+
+        </div>
+    </div> 
+
+    <div class="card">
+        <div class="card-body">
+
+            <a class="btn btn-app" href="/UsuariosAlta">
+                <i class="fas fa-plus"></i> Nuevo
+            </a>
+            @* <a class="col col-1" type="Button" @onclick="GenerarExcel">
+                <Tooltip Text="Exportar Excel" Placement="TooltipPlacement.Top">
+                    <i class="fas fa-file-excel"></i>
+                </Tooltip>
+            </a> *@
+
+            @if (espera)
+            {
+
+                <div style="display:flex;align-items:center;justify-content:center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                
+                <DataGrid TItem="UsuarioVM"
+                          Data="@usuariosTabla"
+                          PageSize="10000"
+                          RowSelectable="@((item) => false)"
+                          Class="table table-bordered table-striped ">
+
+                    <DataGridColumn Caption="Accion" Editable="false">
+                        <DisplayTemplate>
+                            <a class="btn btn-app" href="/UsuariosEditar/@context.id">
+                                <i class="fas fa-edit"></i> Editar
+                            </a>
+                        </DisplayTemplate>
+                    </DataGridColumn>
+                    <DataGridColumn Field="@nameof(UsuarioVM.nombreUsuario)" Caption="Nombre de Usuario" Editable="false"></DataGridColumn>
+                    <DataGridColumn Field="@nameof(UsuarioVM.nroUsuarioJDE)" Caption="Nro. Usuario en JDE" Editable="false"></DataGridColumn>
+                    <DataGridColumn Field="@nameof(UsuarioVM.razonSocial)" Caption="Razon Social" Editable="false"></DataGridColumn>
+                    <DataGridColumn Field="@nameof(UsuarioVM.mail)" Caption="Mail del Usuario" Editable="false"></DataGridColumn>
+                    <DataGridColumn Caption="Fecha Ultima Visita" Editable="false">
+                        <DisplayTemplate>
+                            <p>@context.fechaUltimaVisita.ToString("dd/MM/yyyy")</p>
+                        </DisplayTemplate>
+                    </DataGridColumn>
+                    <DataGridColumn  Caption="Envio de Factura" Editable="false">
+                        <DisplayTemplate>
+                            @if (context.envioFactura)
+                            {
+                                <p>Habilitado</p>
+                            }
+                            else
+                            {
+                                <p>No Habilitado</p>
+                            }
+                        </DisplayTemplate>
+                    </DataGridColumn>
+
+                    <DataGridColumn Caption="Envio de Recibo" Editable="false">
+                        <DisplayTemplate>
+                            @if (context.envioRecibo)
+                            {
+                                <p>Habilitado</p>
+                            }
+                            else
+                            {
+                                <p>No Habilitado</p>
+                            }
+                        </DisplayTemplate>
+                    </DataGridColumn>
+                
+                </DataGrid>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    List<UsuarioVM> usuarios = new();
+    List<UsuarioVM> usuariosTabla = new();
+    FiltroUsuarios filtroUsuarios = new();
+    UsuarioVM usuarioSelected;
+    string buscar = "";
+    public bool espera = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        espera = true;
+        usuarios = await _usuarioService.Get();
+        usuariosTabla = usuarios;
+        espera = false;
+    }
+
+    public async Task Buscar()
+    {
+        espera = true;
+     
+        var query = usuarios.AsQueryable();
+        query = query.Where(x => x.nombreUsuario.ToUpper().Contains(buscar.ToUpper()) || x.nroUsuarioJDE.Contains(buscar) || x.razonSocial.ToUpper().Contains(buscar.ToUpper()));
+        usuariosTabla = query.ToList();
+        
+        espera = false;
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            Buscar();
+        }
+    }
+//     private async Task downloadFile(string fileName, string filePath)
+//     {
+//         var element = await JSRuntime.InvokeAsync<IJSObjectReference>("BlazorDownloadFile", "a");
+//         await element.InvokeVoidAsync("setAttribute", "href", filePath);
+//         await element.InvokeVoidAsync("setAttribute", "download", fileName);
+//         await element.InvokeVoidAsync("click");
+//         await element.InvokeVoidAsync("dispose");
+//     }
+
+
+
+//     private async Task GenerarExcel()
+//     {
+//         var data = usuarios;  // Obtén los datos de la tabla o de donde sea necesario
+//         var fileName = "usuarios_" + DateTime.Now.ToString() + ".xlsx";
+//         await _excelService.GenerateExcelAsync(data, JSRuntime, fileName);
+//     }
+// }
+// <script>
+//     function BlazorDownloadFile(filename, bytesBase64) {
+//         var link = document.createElement('a');
+//         link.download = filename;
+//         link.href = "data:application/octet-stream;base64," + bytesBase64;
+//         document.body.appendChild(link); // Needed for Firefox
+//         link.click();
+//         document.body.removeChild(link);
+//     }
+// </script>
+}

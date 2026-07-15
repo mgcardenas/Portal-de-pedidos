@@ -1,0 +1,533 @@
+﻿@page "/CarritoPedido"
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims;
+@using Blazored.SessionStorage;
+@using PortalDePedidos.Pages.Shared
+@using PortalDePedidosModel;
+@using PortalDePedidos;
+@using PortalDePedidosService
+@using PortalDePedidosShared.AuditoriasVM
+@using PortalDePedidosShared.ComprasAnticipadasPendientesVM
+@using PortalDePedidosShared.DataWhereHouse
+@using PortalDePedidosShared.UsuariosVM;
+@using PortalDePedidosShared.IngresoPedidosVM;
+@using PortalDePedidos.Extensiones;
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize]
+@inject ISessionStorageService _sessionStorageService
+@inject IJSRuntime js
+@inject NavigationManager navigation
+@inject CarritoPedidosContainer _carritoPedidos
+@inject ComprasAnticipadasPendientesContainer _comprasAnticipadasPendientesContainer
+@inject UsuarioClienteService _usuarioService
+@inject IngresoPedidoClienteService _ingresoPedidoService
+@inject AuditoriaClienteService _auditoriaService
+@inject AppSettings _appSettings
+@inject ReCaptchaClienteService recaptchaService
+
+<div class="my-scrollbar-page">
+    <div class="card card-primary mt-2">
+
+        <div class="card-header">
+            @if (_carritoPedidos.IngresoPedidoVM.cliente != null)
+            {
+                <h3 class="card-title">Artículos en Pedido para @_carritoPedidos.IngresoPedidoVM.cliente.nombreUsuario</h3>
+            }
+        </div>
+
+        <div class="card-body">
+            <div class="card">
+                <div class="card-body">
+
+                    <div class="row">
+                        <div class="col col-2" style="align-content:center; text-align:center">
+                            <label>Imagen</label>
+                        </div>
+
+                        <div class="col col-5" style="align-content:center; text-align:center">
+                            <label>Descripción del Artículo</label>
+                        </div>
+
+
+                        <div class="col col-4" style="align-content:center; text-align:center">
+                            <label>Cantidad</label>
+                        </div>
+
+                        <div class="col col-1" style="align-content:center; text-align:center">
+                            <label>Acción</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @foreach (var articulo in _carritoPedidos.IngresoPedidoVM.articulos)
+            {
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row">
+
+                            <div class="col col-2" style="align-content:center; text-align:center">
+                                @if (articulo.Imagen != null)
+                                {
+                                    <img src="@($"data:image/png;base64,{articulo.Imagen}")" alt="Imagen del Artículo" width="60" height="60" />
+                                }
+                                else
+                                {
+                                    <img src="/imagenes/productos/sinimagen.jpg" alt="Imagen del Artículo" width="60" height="60" />
+                                }
+                            </div>
+
+                            <div class="col col-5" style="align-content:center; text-align:center">
+                                <p>
+                                    <strong>@articulo.CodArticulo</strong> - @articulo.Descripcion
+                                    -  @articulo.SubCategoria
+                                </p>
+                            </div>
+
+                            @if (articulo.UnidadDeMedida == "TN")
+                            {
+                                <div class="col col-1" style="align-content:center">
+                                </div>
+                                <div class="col col-1" style="align-content:center">
+                                    <input class="form-control" type="number" @bind="articulo.Cantidad" />
+                                </div>
+
+                                <div class="col col-2" style="align-content:center">
+
+                                    <p style="text-align:left"> @articulo.UnidadDeMedida </p>
+
+                                </div>
+
+
+                                <div class="col col-2" hidden style="align-content:center">
+                                    <p style=" text-align:left"> Total @Math.Round(articulo.CalcularTN(), 2) TN</p>
+
+                                    <p style=" text-align:left"> @articulo.unidadesTotales Unidades</p>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="col col-1" style="align-content:center">
+                                    <input class="form-control" type="number" @bind="articulo.Cantidad" />
+                                </div>
+
+                                <div class="col col-1" style="align-content:center">
+
+                                    <p style="text-align:left"> @articulo.UnidadDeMedida </p>
+
+                                </div>
+
+
+                                <div class="col col-2" style="align-content:center">
+                                    <p style=" text-align:left"> Total @Math.Round(articulo.CalcularTN(), 2) TN</p>
+
+                                    <p style=" text-align:left"> @articulo.unidadesTotales Unidades</p>
+                                </div>
+                            }
+
+                            <div class="col col-1" style="align-content:center;text-align:center">
+                                <div class="btn btn-danger " @onclick="@(() => EliminarArticulo(articulo))" data-toggle="tooltip" title="Eliminar artículo del carrito">
+                                    <i class="fas fa-trash fa-lg"></i>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+            }
+
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col col-2">
+                            <a href="/IngresoPedidos">
+                                <button class="btn btn-primary">Añadir mas artículos</button>
+                            </a>
+                        </div>
+                        <div class="col col-2">
+                        </div>
+
+                        <label class="col col-4" style=" text-align:center">SUBTOTAL PALLETS</label>
+
+                        <div class="col col-1"></div>
+                        <div class="col col-3">
+                            <p style=" ">@Math.Round(_carritoPedidos.IngresoPedidoVM.CalcularSubTotaPallet(), 2) TN</p>
+                        </div>
+
+                    </div>
+
+                    <div class="row">
+
+                        <div class="col col-4">
+                        </div>
+
+                        <label class="col col-4" style=" text-align:center">SUBTOTAL PAQUETES</label>
+
+                        <div class="col col-1"></div>
+                        <div class="col col-3">
+                            <p style=" ">@Math.Round(_carritoPedidos.IngresoPedidoVM.subTotalPaquetes, 2) TN</p>
+                        </div>
+
+                    </div>
+
+                    <div class="row">
+
+                        <div class="col col-4">
+                        </div>
+
+                        <label class="col col-4" style=" text-align:center">SUBTOTAL GRANEL</label>
+
+                        <div class="col col-1"></div>
+                        <div class="col col-3">
+                            <p style=" ">@Math.Round(_carritoPedidos.IngresoPedidoVM.subTotalGranel, 2) TN</p>
+                        </div>
+
+                    </div>
+
+                    <div class="row">
+
+                        <div class="col col-4">
+                        </div>
+
+                        <label class="col col-4" style=" text-align:center">PESO TOTAL DEL PEDIDO</label>
+
+                        <div class="col col-1"></div>
+
+                        @if (_carritoPedidos.ContieneArticuloUnico())
+                        {
+                            <div class="col col-3">
+                                <p style=" ">@Math.Round(_carritoPedidos.MaxTN(_appSettings.MinTNGranel, _appSettings.MaxTN), 2) TN</p>
+                            </div>
+                            @if (!_carritoPedidos.maxTNValido)
+                            {
+                                <div style=" text-align:center" class="validation-message">El peso total del pedido debe ser entre @_appSettings.MinTNGranel TN y @_appSettings.MaxTN TN.</div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="col col-3">
+                                <p style=" ">@Math.Round(_carritoPedidos.MaxTN(_appSettings.MinTNPallet, _appSettings.MaxTN), 2) TN</p>
+                            </div>
+                            @if (!_carritoPedidos.maxTNValido)
+                            {
+                                <div style=" text-align:center" class="validation-message">El peso total del pedido debe ser entre @_appSettings.MinTNPallet TN y @_appSettings.MaxTN TN.</div>
+                            }
+                        }
+
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <EditForm Model="_carritoPedidos.IngresoPedidoVM" OnValidSubmit="Guardar">
+        <DataAnnotationsValidator />
+        <div class="card card-primary mt-2">
+
+            <div class="card-header">
+                <h3 class="card-title">Datos de Pedido</h3>
+            </div>
+
+
+            <div class="card-body">
+                <div class="row">
+
+                    <div class="form-group row">
+                        <label>Flete Enviado por</label>
+
+                        <InputSelect class="form-control" @bind-Value="@_carritoPedidos.IngresoPedidoVM.fleteEnviadoPor">
+                            <option value="@FleteEnviadoPor.Nulo">Seleccione una opción</option>
+                            <option value="@FleteEnviadoPor.PCR">PCR S.A.</option>
+                            <option value="@FleteEnviadoPor.CLIENTE">Cliente</option>
+
+                        </InputSelect>
+                        <ValidationMessage For="(() => _carritoPedidos.IngresoPedidoVM.fleteEnviadoPor)" />
+                    </div>
+
+                    <div class="form-group row">
+                        <label>Flete Abonado por</label>
+
+                        <InputSelect class="form-control" @bind-Value="@_carritoPedidos.IngresoPedidoVM.fleteAbonadoEn">
+                            <option value="@FleteAbonadoEn.Nulo">Seleccione una opción</option>
+                            <option value="@FleteAbonadoEn.PCR">PCR - (incluido en factura)</option>
+                            <option value="@FleteAbonadoEn.LugarDeEntrega">Cliente</option>
+
+                        </InputSelect>
+                        <ValidationMessage For="(() => _carritoPedidos.IngresoPedidoVM.fleteAbonadoEn)" />
+                    </div>
+
+                    <div class="form-group row">
+                        <label>Zona destino de la mercaderia</label>
+                        <InputSelect class="form-control" @bind-Value="@_carritoPedidos.IngresoPedidoVM.zonaDestino">
+                            <option value="">Seleccione un Destino</option>
+                            @if (zonas.Count > 0)
+                            {
+                                @foreach (var zona in zonas)
+                                {
+                                    <option value="@zona.CodigoZona">(@zona.CodigoZona) @zona.Descripcion</option>
+                                }
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="(() => _carritoPedidos.IngresoPedidoVM.zonaDestino)" />
+                    </div>
+
+                    <div class="form-group row">
+                        <label>Orden de Compra (opcional)</label>
+                        <InputText class="form-control" @bind-Value="@_carritoPedidos.IngresoPedidoVM.ordenDeCompra"></InputText>
+                    </div>
+
+                    @* Probar cambio *@
+                    @if (!_carritoPedidos.IngresoPedidoVM.EsCompraAnticipada)
+                    {
+
+                        <div class="form-group row">
+                            <label>Nro. de Pedidos similares a realizar</label>
+                            @if (_carritoPedidos.IngresoPedidoVM.nroPedidoValido)
+                            {
+                                <input class="form-control" type="number" value="@_carritoPedidos.IngresoPedidoVM.nroDePedidos" @onchange="OnNumeroDePedidosChanged" />
+                            }
+                            else
+                            {
+                                <input class="form-control invalid" type="number" value="@_carritoPedidos.IngresoPedidoVM.nroDePedidos" @onchange="OnNumeroDePedidosChanged" />
+                                <div class="validation-message">El nro de pedido debe ser entre 1 y 10.</div>
+                            }
+
+                        </div>
+                    }
+
+                </div>
+
+
+
+
+            </div>
+
+        </div>
+
+        @foreach (var item in _carritoPedidos.IngresoPedidoVM.datosDePedidos)
+        {
+
+            <div class="card card-primary mt-2">
+
+                <div class="card-header">
+                    <h3 class="card-title">Datos del Pedido N° @item.nroPedido</h3>
+                </div>
+
+
+                <div class="card-body">
+                    <div class="row">
+
+                        <div class="form-group row">
+                            <label>Fecha de entrega del pedido</label>
+                            <InputDate class="form-control" @bind-Value="@item.fechaDeEntrega"></InputDate>
+                        </div>
+
+                        <div class="form-group row">
+                            <label>Observaciones</label>
+                            <InputText class="form-control" maxlength="30" @bind-Value="@item.observaciones"></InputText>
+                        </div>
+
+                    </div>
+
+
+
+
+                </div>
+
+            </div>
+
+        }
+
+        <div class="card card-primary mt-2">
+
+            <ReCaptcha @ref="reCaptchaComponent"></ReCaptcha>
+
+            <div class="g-recaptcha" data-sitekey="6LdAj3UqAAAAAAp5d8JjPOuI6rVo1hUW0TYLZQ1J" data-action="@action"></div>
+
+            <div class="card-footer">
+                @if (falloRecaptcha)
+                {
+                    <p class="error text-danger">Fallo validación de ReCaptcha</p>
+                }
+                <button disabled="@enviado" class="btn btn-primary" @onclick="ConfirmacionNuevoPedido">Nuevo Pedido</button>
+                <button type="submit" disabled="@enviado" class="btn btn-primary">Enviar Pedido</button>
+            </div>
+        </div>
+
+    </EditForm>
+    <!-- Modal -->
+    <div class="modal fade" id="modalCarrito" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="exampleModalLabel">Nuevo Pedido</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" @onclick="ConfirmacionNuevoPedidoCerrar"></button>
+                </div>
+                <div class="modal-body">
+                    Desea descartar el pedido actual e iniciar uno nuevo?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @onclick="ConfirmacionNuevoPedidoCerrar">No</button>
+                    <button type="button" class="btn btn-primary" @onclick="NuevoPedido">Si</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+@code {
+    public SesionUsuario sesionUsuario = new();
+    List<Zona> zonas = new();
+    public bool enviado = false;
+    public bool espera = false;
+    private ReCaptcha reCaptchaComponent = new();
+    private string action = "PEDIDO";
+    private bool PasoRecaptcha = false;
+    private bool falloRecaptcha = false;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        espera = true;
+        sesionUsuario = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+        //si es un cliente o comprador se asigna al carrito de compras
+        if (sesionUsuario.Rol != "Comercial" && _carritoPedidos.IngresoPedidoVM.cliente == null)
+            _carritoPedidos.IngresoPedidoVM.cliente = await _usuarioService.GetUsuarioJDE(sesionUsuario.Id, sesionUsuario.NroUsuarioJDE);
+
+        if (_carritoPedidos.IngresoPedidoVM.cliente == null)
+        {
+            // var msj = "Debe seleccionar un cliente antes de realizar el pedido!";
+            // await js.InvokeVoidAsync("AlertaArticulo", msj);
+            navigation.NavigateTo("/IngresoPedidosTablaUsuarios");
+        }
+        else
+        {
+            zonas = await _usuarioService.GetZonas();
+            _carritoPedidos.IngresoPedidoVM.zonaDestino = _carritoPedidos.IngresoPedidoVM.cliente.codZona;
+        }
+
+        if (_carritoPedidos.IngresoPedidoVM.EsCompraAnticipada)
+        {
+            LlenoDatosSG();
+        }
+
+        espera = false;
+        PasoRecaptcha = !_appSettings.ReCaptcha;
+    }
+
+    private void LlenoDatosSG()
+    {
+        var compraSG = _carritoPedidos.IngresoPedidoVM.seleccionadosSG.First();
+        var CodFlete = compraSG.CodTipoFlete.ToString();
+        if (CodFlete == "4")
+        {
+            _carritoPedidos.IngresoPedidoVM.fleteEnviadoPor = FleteEnviadoPor.PCR;
+            _carritoPedidos.IngresoPedidoVM.fleteAbonadoEn = FleteAbonadoEn.PCR;
+        }
+        else if (CodFlete == "1")
+        {
+            _carritoPedidos.IngresoPedidoVM.fleteEnviadoPor = FleteEnviadoPor.CLIENTE;
+            _carritoPedidos.IngresoPedidoVM.fleteAbonadoEn = FleteAbonadoEn.LugarDeEntrega;
+        }
+
+        _carritoPedidos.IngresoPedidoVM.zonaDestino = compraSG.Zona;
+    }
+
+    private void OnNumeroDePedidosChanged(ChangeEventArgs e)
+    {
+        var nroPedidos = Int32.Parse(e.Value.ToString());
+
+        _carritoPedidos.IngresoPedidoVM.ActualizarDatosPedido(nroPedidos);
+    }
+
+
+    public async Task Guardar()
+    {
+        enviado = true;
+
+        if (_appSettings.ReCaptcha)
+        {
+            var captchaResponse = await reCaptchaComponent.GetCaptchaResponseAsync(action);
+            PasoRecaptcha = await recaptchaService.Validar(captchaResponse, action);
+        }
+
+        if (PasoRecaptcha)
+        {
+
+            if (_carritoPedidos.IngresoPedidoVM.nroPedidoValido && _carritoPedidos.maxTNValido && _carritoPedidos.IngresoPedidoVM.articulos.Count() > 0)
+            {
+                _carritoPedidos.IngresoPedidoVM.fechaEnvio = DateTime.Now;
+                
+                Respuesta<InformacionFinalPedido> respuesta = new Respuesta<InformacionFinalPedido>();
+                
+                
+                respuesta = await _ingresoPedidoService.GuardarNuevoPedido(_carritoPedidos.IngresoPedidoVM);
+                
+
+                if (respuesta.Exito)
+                {
+                    await _auditoriaService.GuardarNuevaAuditoria(new AuditoriasVM()
+                    {
+                        idUsuario = sesionUsuario.Id,
+                        idOperacion = OperacionesManager.GetIdOperacion(Operacion.IngresoPedido),
+                        timestamps = DateTime.Now,
+                    });
+
+                    _carritoPedidos.InformacionFinalPedido = respuesta.Data;
+                    _carritoPedidos.IngresoPedidoVM = new();
+                    _carritoPedidos.PedidoEnCurso = false;
+                    navigation.NavigateTo("/FinDePedido");
+                }
+                else
+                {
+                    var msj = "Algo fallo!, No se pudo realizar el pedido.";
+                    await js.InvokeVoidAsync("AlertaFallo", msj);
+                }
+            }
+            else
+            {
+                var msj = "No se pudo realizar el pedido, compruebe que los datos sean correctos.";
+                await js.InvokeVoidAsync("AlertaFallo", msj);
+            }
+        }
+        else
+        {
+            falloRecaptcha = true;
+        }
+        enviado = false;
+    }
+
+    public async Task NuevoPedido()
+    {
+        await ConfirmacionNuevoPedidoCerrar();
+        _carritoPedidos.IngresoPedidoVM = new();
+        _carritoPedidos.IngresoPedidoVM.EsCompraAnticipada = false;
+        navigation.NavigateTo("/IngresoPedidos");
+    }
+
+    public async Task ConfirmacionNuevoPedido()
+    {
+        await js.InvokeVoidAsync("AlertaAbrir", "#modalCarrito");
+    }
+
+    public async Task ConfirmacionNuevoPedidoCerrar()
+    {
+        await js.InvokeVoidAsync("AlertaCerrar", "#modalCarrito");
+    }
+
+
+
+    public void EliminarArticulo(ArticuloIngresoPedidoVM articulo)
+    {
+        _carritoPedidos.BorrarArticulo(articulo);
+    }
+
+
+}

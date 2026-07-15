@@ -1,0 +1,290 @@
+﻿@page "/"
+@layout LogInLayout
+@using Microsoft.AspNetCore.Components.Authorization
+@using PortalDePedidos.Extensiones
+@using PortalDePedidos.Pages.Shared
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@using Blazored.SessionStorage
+@using Microsoft.AspNetCore.Authorization
+@using PortalDePedidosShared.IngresoPedidosVM
+@using PortalDePedidosShared.FacturasVM
+@using PortalDePedidosShared.LoginVM
+@using PortalDePedidosShared.SeguimientoPedidosVM
+
+@inject AuthenticationStateProvider autenticacionProvider
+@inject NavigationManager navigation
+@inject LogInClienteService loginService
+@inject AppSettings _appSettings
+@inject ReCaptchaClienteService recaptchaService
+@inject ContainerManager _containerManager
+@inject LoginContainer _loginContainer
+@inject UsuarioClienteService _usuarioService
+@inject IJSRuntime js
+@inject ISessionStorageService _sessionStorageService
+
+
+
+
+<div class="login-box">
+    
+    <div class="card card-outline card-primary">
+        <div class="card-header text-center">
+            <img class="brand-image-xl " src="/imagenes/logo/logo_empresa.png" />
+            <p>Portal de Pedidos <br />
+                @_appSettings.Version
+            </p>
+        </div>
+        <div class="card-body">
+            
+            <EditForm Model="logIn" OnValidSubmit="IniciarSesion">
+                <div class="input-group ">
+                    <InputText @bind-Value="@logIn.userName" class="form-control" placeholder="Nombre de Usuario"></InputText>
+                    <div class="input-group-append">
+                        <div class="input-group-text">
+                            <span class="fas fa-user"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-group mt-3">
+                    <InputText @bind-Value="@logIn.password" type="password" class="form-control" placeholder="Contraseña"></InputText>
+                    <div class="input-group-append">
+                        <div class="input-group-text">
+                            <span class="fas fa-lock"></span>
+                        </div>
+                    </div>
+                </div>
+                @if (fallo)
+                {
+                    <p class="error text-danger">@msjError</p>
+                }
+ 
+                @if (!_appSettings.AppPublica)
+                {
+                    
+                <div class="custom-control custom-switch mt-3 mb-3">
+                    <input @onchange="CambioDeLogIn" type="checkbox" class="custom-control-input" id="customSwitch1">
+                    <label class="custom-control-label" for="customSwitch1">Soy empleado de PCR</label>
+                </div>
+                }
+                <div class="row mt-2">
+                      
+                    <ReCaptcha @ref="reCaptchaComponent"></ReCaptcha>
+
+                    <div class="g-recaptcha" data-sitekey="6LdAj3UqAAAAAAp5d8JjPOuI6rVo1hUW0TYLZQ1J" data-action="@action"></div>
+                    @*
+                    *@
+                    @if (_appSettings.ReCaptcha)
+                    {
+
+                        @* <div id="recaptcha-container">
+                            <!-- Este div es donde se mostrará el widget de reCAPTCHA -->
+                        </div>
+
+                        @if (falloRecaptcha)
+                        {
+                            <p class="error text-danger">Complete el reCAPTCHA para ingresar</p>
+                        } *@
+                    }
+                </div>
+                <div class="row mb-2 mt-2">
+
+                    <div class="col-4">
+                        <button type="submit" disabled="@enviado" class="btn btn-primary btn-block">Ingresar</button>
+                    </div>
+
+                    <div class="col-2">
+                        @if (enviado)
+                        {
+
+                            <div style="display:flex;align-items:center;justify-content:center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="sr-only">Loading...</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                </div>
+            </EditForm>
+
+            @if (!EsEmpleado)
+            {
+                <p class="mb-1">
+                    <a href="/OlvideContrasena">Olvidé mi contraseña</a>
+                </p>
+
+                @* <p class="mb-0">
+                    <a href="/Registro" class="text-center">Registrarse</a>
+                </p> *@
+            }
+
+        </div>
+
+    </div>
+
+</div>
+@code {
+    private UsuarioLogIn logIn = new();
+    private bool EsEmpleado = false;
+    private bool fallo = false;
+    private bool PasoRecaptcha = false;
+    private bool enviado = false;
+    private string msjError = "";
+
+    private ReCaptcha reCaptchaComponent = new();
+    private string action = "LOGIN";
+
+    private string? _captchaToken;
+    protected override async Task OnInitializedAsync()
+    {
+        //enviado = _appSettings.ReCaptcha;
+        PasoRecaptcha = !_appSettings.ReCaptcha;
+    }
+
+    // Inicializar reCAPTCHA en el método `OnAfterRenderAsync`
+    // protected override async Task OnAfterRenderAsync(bool firstRender)
+    // {
+    //     if (firstRender)
+    //     {
+    //         if (_appSettings.ReCaptcha)
+    //         {
+    //             //await js.InvokeVoidAsync("initReCaptcha", DotNetObjectReference.Create(this));
+    //         }
+    //     }
+    // }
+
+    // // Método que se ejecuta cuando el usuario hace clic en el botón
+    // private async Task ValidateCaptcha()
+    // {
+    //     if (string.IsNullOrEmpty(_captchaToken))
+    //     {
+    //         //Console.WriteLine("Por favor, completa el reCAPTCHA.");
+    //         return;
+    //     }
+
+    //     // Envía el token a tu servidor para la validación
+    //     PasoRecaptcha = true; 
+    //     await recaptchaService.Validar(_captchaToken);
+    // }
+
+    // // Recibir el token desde JavaScript
+    // [JSInvokable("SetCaptchaToken")]
+    // public async Task SetCaptchaToken(string token)
+    // {
+    //     _captchaToken = token;
+    //     await ValidateCaptcha();
+    // }
+
+    private async Task IniciarSesion()
+    {
+        enviado = true;
+        Respuesta<SesionUsuario>? sesion = null;
+
+        if (_appSettings.ReCaptcha)
+        {
+            var captchaResponse = await reCaptchaComponent.GetCaptchaResponseAsync(action);
+            //var captchaResponse = await js.InvokeAsync<string>("getReCaptchaToken");
+            PasoRecaptcha = await recaptchaService.Validar(captchaResponse,action);
+        }
+
+        if (PasoRecaptcha)
+        {
+            if (EsEmpleado)
+            {
+                sesion = await loginService.LoginAD(logIn);
+            }
+            else
+            {
+                if (_appSettings.LogInMFA)
+                {
+                    await LogInMFA(logIn);
+                }
+                else
+                {
+                    sesion = await loginService.Login(logIn);
+                    if (sesion.Mensaje == "TooManyRequests")
+                    {
+                        var msj = "Demasiadas solicitudes, intentá de nuevo más tarde.";
+                        await js.InvokeVoidAsync("AlertaFallo", msj);
+                    }
+                }
+            }
+
+            if (sesion.Data != null)
+            {
+                //Si se loguea otro usuario reinicio contenedores
+                var ultimoUsuario = await _sessionStorageService.ObtenerStorage<string>("UltimoUsuario");
+                if (ultimoUsuario != sesion.Data.NombreUsuario && !string.IsNullOrEmpty(ultimoUsuario))
+                {
+                    _containerManager.ReiniciarContainers();
+                }
+
+                //Verifico si la contraseña expiro
+                if (sesion.Data.ContrasenaExpirada)
+                {
+                    _loginContainer.SesionUsuario = sesion.Data;
+                    navigation.NavigateTo("/RecuperarContrasena/" + sesion.Data.Id);
+                    var msj = "Tu contraseña ha caducado, debes generar una nueva contraseña!";
+                    await js.InvokeVoidAsync("AlertaFallo", msj);
+                    return;
+                }
+
+                //si es un cliente o comprador se asigna al carrito de compras
+                if (sesion.Data.Rol != "Comercial")
+                {
+                    var cliente = await _usuarioService.GetUsuarioJDE(sesion.Data.Id, sesion.Data.NroUsuarioJDE);
+                    _containerManager.AsignarCliente(cliente);
+                    // if (sesion.TieneDeuda)
+                    // {
+                    //     await js.InvokeVoidAsync("AlertaDeuda", "Usted posee dueda vencida. Por favor revise el estado de cuenta corriente.");
+                    // }
+                }
+
+                var autenticacionExt = (AutenticacionExtension)autenticacionProvider;
+                await autenticacionExt.ActualizarEstadoAutenticacion(sesion.Data);
+                navigation.NavigateTo("/Home");
+            }
+            else
+            {
+                fallo = true;
+                msjError = "Usuario o contraseña incorrecta";
+                logIn.userName = "";
+                logIn.password = "";
+            }
+
+        }
+        else
+        {
+            fallo = true;
+            msjError = "Fallo validación de ReCaptcha";
+        }
+        enviado = false;
+    }
+
+    public void CambioDeLogIn(ChangeEventArgs eventArgs)
+    {
+        EsEmpleado = (bool)eventArgs.Value;
+    }
+
+    private async Task LogInMFA(UsuarioLogIn login)
+    {
+        if(await loginService.LoginMFA(login))
+            navigation.NavigateTo("/LogInMFA");
+    }
+
+}
+
+@* <script>
+    window.initReCaptcha = function (dotNetHelper) {
+        grecaptcha.render('recaptcha-container', {
+            'sitekey': '6LdAj3UqAAAAAAp5d8JjPOuI6rVo1hUW0TYLZQ1J', // Reemplaza TU_SITE_KEY con la clave de sitio de reCAPTCHA
+            'callback': function (token) {
+                // Llamar a Blazor para establecer el token
+                dotNetHelper.invokeMethodAsync('SetCaptchaToken', token);
+            }
+        });
+    };
+</script> *@
+

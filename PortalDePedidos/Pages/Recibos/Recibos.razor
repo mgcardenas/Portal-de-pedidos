@@ -1,0 +1,275 @@
+﻿@page "/Recibos"
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@using PortalDePedidosShared.RecibosVM
+@using PortalDePedidosShared.SeguimientoPedidosVM
+@using PortalDePedidosShared.UsuariosVM
+@using Blazorise.DataGrid
+@using Blazorise
+@using Blazored.SessionStorage
+@using PortalDePedidos.Extensiones
+@using ClosedXML.Excel
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@inject DataWareHouseClienteService _dataWarehouseService
+@inject UsuarioClienteService _usuarioService
+@inject IJSRuntime JSRuntime
+@inject ExcelService _excelService
+@inject ISessionStorageService _sessionStorageService;
+@inject ReciboContainer _recibosContainer
+@inject NavigationManager navigation
+@inject PdfClienteService _pdfService
+
+<div class="my-scrollbar-page">
+<div class="card card-primary mt-2">
+    <div class="card-header">
+        @if (_recibosContainer?.cliente != null && sesionUsuario.Rol == "Comercial")
+        {
+            <h3 class="card-title">Recibos de cliente: @_recibosContainer.cliente.nombreUsuario</h3>
+        }
+        else if (sesionUsuario != null && sesionUsuario.Rol != "Comercial")
+        {
+            <h3 class="card-title">Recibos de cliente: @sesionUsuario.NombreUsuario</h3>
+        }
+    </div>
+
+    <div class="card-body">
+        @* <button class="btn btn-primary" @onclick="ExportToPdf">Exportar a PDF</button> *@
+        <EditForm Model="filtro" OnInvalidSubmit="Buscar">
+
+            <div class="input-group row">
+                <label class="col-1">Fecha Desde: </label>
+                <div class="col-2">
+                    <InputDate class="form-control" @bind-Value="@filtro.FechaDesde" disabled="@espera"></InputDate>
+                    <ValidationMessage For="(()=> filtro.FechaDesde)" />
+                </div>
+
+                <label class="col-1">Fecha Hasta: </label>
+                <div class="col-2">
+                    <InputDate class="form-control" @bind-Value="@filtro.FechaHasta" disabled="@espera"></InputDate>
+                    <ValidationMessage For="(()=> filtro.FechaHasta)" />
+                </div>
+            </div>
+
+            <div class="input-group row mt-2">
+                <label class="col-1">Cliente: </label>
+                <div class="col-2">
+                    <InputSelect class="form-control" @bind-Value="@filtro.CodCliente" disabled>
+                        @if (sesionUsuario?.Rol != "Comercial")
+                        {
+                            <option value="@sesionUsuario?.NroUsuarioJDE">@sesionUsuario?.NroUsuarioJDE - @sesionUsuario?.NombreUsuario</option>
+                        }
+                        else if (_recibosContainer?.cliente != null)
+                        {
+                            <option value="@_recibosContainer.cliente.nroUsuarioJDE">@_recibosContainer.cliente.nroUsuarioJDE - @_recibosContainer.cliente.nombreUsuario</option>
+                        }
+                    </InputSelect>
+
+                    <ValidationMessage For="(()=> filtro.CodCliente)" />
+                </div>
+
+                <label class="col-1">Numero de recibo: </label>
+                <div class="col-2">
+                    <InputText class="form-control" @bind-Value="@filtro.NroRecibo" ></InputText>
+                    <ValidationMessage For="(()=> filtro.CodCliente)" />
+                </div>
+
+                <div class="input-group-append col-1">
+                    <button class="btn" @onclick="Buscar" disable>
+                        <i class="fas fa-search fa-fw"></i>
+                    </button>
+                </div>
+                @if (sesionUsuario.Rol == "Comercial")
+                {
+                    <div class="input-group-append col-2">
+                        <button class="btn btn-primary" @onclick="Recargar">
+                            <i class="fas fa-user"></i> Consultar otro cliente
+                        </button>
+                    </div>
+                }
+            </div>
+        </EditForm>
+    </div>
+
+</div>
+
+
+    @* Informacion importante *@
+    <div id="alerta" class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-info-circle " style="color:whitesmoke"></i>
+        La descarga de documentos con fecha de hoy, está disponible a partir del día de mañana.
+        <button type="button" class="close" data-bs-dismiss="alert" aria-label="Close">
+            <span style="color:white">&times;</span>
+        </button>
+    </div>
+
+<div class="card">
+    <div class="card-body">
+        @if (espera)
+        {
+
+            <div style="display:flex;align-items:center;justify-content:center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+            </div>
+        }
+        else
+        {
+
+
+
+            <a class="col col-1" type="Button" @onclick="GenerarExcel">
+                <Tooltip Text="Descargar reporte Excel" Placement="TooltipPlacement.Top">
+                    <i class="fas fa-file-excel"></i> Excel
+                </Tooltip>
+            </a>
+            <DataGrid TItem="ReciboVM"
+                      Data="@recibos"
+                      PageSize="10000"
+                      Responsive
+                      Class="table table-bordered table-striped">
+
+                <DataGridColumn Caption="" Editable="false">
+                    <DisplayTemplate>
+                        @if (context.NombreArchivo != null)
+                        {
+
+                            <a class="col col-1" type="Button" @onclick="() => ExportToPdf(context)">
+                                <Tooltip Text="Descargar Recibo" Placement="TooltipPlacement.Top">
+                                    <i class="fas fa-file-pdf"></i>
+                                </Tooltip>
+                            </a>
+                        }
+                    </DisplayTemplate>
+                </DataGridColumn>
+                <DataGridColumn Field="@nameof(ReciboVM.NroRecibo)" Caption="Nro de recibo" Editable="false"></DataGridColumn>
+                <DataGridColumn Field="" Caption="Fecha de recibo" Editable="false">
+                    <DisplayTemplate>
+                        <a>@context.FechaCobro.ToString("dd/MM/yyyy")</a>
+                    </DisplayTemplate>
+                </DataGridColumn>
+                <DataGridColumn Field="@nameof(ReciboVM.Moneda)" Caption="Moneda" Editable="false"></DataGridColumn>
+                <DataGridColumn Field="@nameof(ReciboVM.ImporteCobro)" Caption="Importe" Editable="false">
+                        <DisplayTemplate>
+                            @{
+                                var importeBrutoFormateado = context.ImporteCobro.ToString("N2", new System.Globalization.CultureInfo("es-AR"));
+                            }
+                            <span>$@importeBrutoFormateado</span>
+                        </DisplayTemplate>
+                </DataGridColumn>
+                @* <DataGridColumn Field="@nameof(ReciboVM.ImporteCobroMe)" Caption="Importe ME" Editable="false"></DataGridColumn> *@
+                
+            </DataGrid>
+        }
+    </div>
+</div>
+</div> 
+
+@code {
+    List<ReciboVM> recibos = new();
+    FiltroRecibos filtro = new();
+    List<UsuarioVM> clientes = new();
+    public bool espera = false;
+    SesionUsuario sesionUsuario = new();
+    protected override async Task OnInitializedAsync()
+    {
+        sesionUsuario = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+        if (sesionUsuario == null)
+        {
+            await JSRuntime.InvokeVoidAsync("AlertaArticulo", "Error: Usuario no encontrado.");
+            return;
+        }
+
+        if (_recibosContainer.cliente == null && sesionUsuario.Rol == "Comercial")
+        {
+            var msj = "¡Debe seleccionar un cliente antes de consultar sus recibos!";
+            await JSRuntime.InvokeVoidAsync("AlertaArticulo", msj);
+            navigation.NavigateTo("/RecibosTablaUsuarios");
+            return;
+        }
+
+        espera = true;
+        clientes = (await _usuarioService.GetClientes()).OrderByDescending(x => x.nroUsuarioJDE).ToList();
+
+        if (sesionUsuario.Rol != "Comercial")
+        {
+            filtro.CodCliente = int.Parse(sesionUsuario.NroUsuarioJDE);
+        }
+        else if (_recibosContainer.cliente != null)
+        {
+            filtro.CodCliente = int.Parse(_recibosContainer.cliente.nroUsuarioJDE);
+        }
+
+        espera = false;
+    }
+
+
+
+    public async Task Buscar()
+    {
+        espera = true;
+        if (sesionUsuario.Rol != "Comercial")
+        {
+            filtro.CodCliente = int.Parse(sesionUsuario.NroUsuarioJDE);
+        }
+        recibos = await _dataWarehouseService.GetRecibos(filtro);
+        espera = false;
+    }
+    private async Task downloadFile(string fileName, string filePath)
+    {
+        var element = await JSRuntime.InvokeAsync<IJSObjectReference>("BlazorDownloadFile", "a");
+        await element.InvokeVoidAsync("setAttribute", "href", filePath);
+        await element.InvokeVoidAsync("setAttribute", "download", fileName);
+        await element.InvokeVoidAsync("click");
+        await element.InvokeVoidAsync("dispose");
+    }
+
+    private async Task Recargar()
+    {
+        _recibosContainer.cliente = null;
+        navigation.NavigateTo("/RecibosTablaUsuarios");
+    }
+
+    private async Task GenerarExcel()
+    {
+        await _excelService.exportExelRecibos(recibos,filtro,JSRuntime,_recibosContainer.cliente);
+    }
+
+    private async Task ExportToPdf(ReciboVM recibo)
+    {
+
+        //Generar el PDF
+        try
+        {
+            var respuesta = await _pdfService.GetReciboByte(recibo);
+            if (respuesta.Exito)
+            {
+                var base64 = Convert.ToBase64String(respuesta.Data);
+                // Descargar el PDF
+                var fileName = $"Recibo nro {recibo.NroRecibo}.pdf";
+                await JSRuntime.InvokeVoidAsync("BlazorDownloadFile", fileName, base64);
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("AlertaFallo", "No se pudo descargar el recibo. Comuniquese con el area de comercial para reclamar este documento");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+
+
+    }
+}
+<script>
+    function BlazorDownloadFile(filename, bytesBase64) {
+        var link = document.createElement('a');
+        link.download = filename;
+        link.href = "data:application/octet-stream;base64," + bytesBase64;
+        document.body.appendChild(link); // Needed for Firefox
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>

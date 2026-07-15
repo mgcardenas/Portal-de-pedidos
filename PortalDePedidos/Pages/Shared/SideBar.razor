@@ -1,0 +1,427 @@
+﻿ @using Microsoft.AspNetCore.Authorization
+ @using System.Security.Claims;
+ @using Blazored.SessionStorage;
+ @using PortalDePedidosModel;
+ @using PortalDePedidos;
+@using PortalDePedidosShared.ComprasAnticipadasPendientesVM
+@using PortalDePedidosShared.IngresoPedidosVM
+ @using PortalDePedidosShared.UsuariosVM;
+ @using PortalDePedidos.Extensiones;
+ @using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize]
+@inject ISessionStorageService _sessionStorageService;
+@inject IJSRuntime js
+@inject AppSettings _appSettings;
+@inject NavigationManager navigation
+@inject CarritoPedidosContainer _carritoPedidos
+@inject ComprasAnticipadasPendientesContainer _comprasAnticipadasPendientesContainer
+<!-- Main Sidebar Container -->
+
+
+<aside class="main-sidebar elevation-4 fondoDeBarraLateral">
+    <!-- Brand Logo -->
+    <div class="brand-link">
+        @* <img src="/AdminLte/dist/img/AdminLTELogo.png" alt="AdminLTE Logo" class="brand-image img-circle elevation-3" style="opacity: .8"> *@
+        <center><img src="/Imagenes/Logo/logo_empresa.png" width="150" /></center>
+        <span style="text-align:center" class="brand-text d-block letrasAzules">Portal de Clientes</span>
+    </div>
+    <div class="dropdown-divider"></div>
+    <!-- Sidebar -->
+    <div class="sidebar os-host os-theme-light os-host-overflow os-host-overflow-y os-host-resize-disabled os-host-scrollbar-horizontal-hidden os-host-transition">
+
+        <div class="os-resize-observer-host observed">
+            <div class="os-resize-observer" style="left: 0px; right: auto;">
+            </div>
+        </div>
+
+        <div class="os-size-auto-observer observed" style="height: calc(100% + 1px); float: left;">
+            <div class="os-resize-observer">
+            </div>
+        </div>
+
+        <div class="os-content-glue" style="margin: 0px -8px; width: 249px; height: 860px;">
+        </div>
+
+        <div class="os-padding">
+            <div class="os-viewport os-viewport-native-scrollbars-invisible" style="overflow-y: scroll;">
+                <div class="os-content" style="padding: 0px 8px; height: 100%; width: 100%;">
+
+                    <!-- Sidebar user panel (optional) -->
+                    <div class="user-panel mt-3 pb-3 mb-3 d-flex" style="align-items:center">
+                        <div class="image">
+                            @* <img src="/AdminLte/dist/img/user2-160x160.jpg" class="img-circle elevation-2" alt="User Image"> *@
+                            <img src="/imagenes/usuarios/usuario.jpg" class="img-circle elevation-2" alt="User Image" />
+                        </div>
+                        <div class="info">
+                            <a href="/Home" class="d-block letrasAzules"><b>@sesionUsuario.NombreUsuario</b> <br /> <b>@sesionUsuario.NroUsuarioJDE</b> <br /> @sesionUsuario.Rol</a>
+                        </div>
+                    </div>
+
+                    <div class="dropdown-divider"></div>
+                    <!-- Sidebar Menu -->
+                    <nav class="mt-2">
+                        <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+                            <!-- Add icons to the links using the .nav-icon class
+                                 with font-awesome or any other icon font library -->
+                            <li class="nav-item ">
+                                <a href="/Home" class="nav-link ">
+                                    <i class="nav-icon fas fa-house-user colorIconos"></i>
+                                    <p class="letrasAzules">
+                                        HOME
+                                    </p>
+                                </a>
+                            </li>
+                            <div class="dropdown-divider"></div>
+
+                            @if (sesionUsuario.Permisos.Contains(Permisos.Configuracion))
+                            {
+
+                                @* CONFIGURACION *@
+                                <li class="nav-header"><b>CONFIGURACIÓN</b></li>
+
+                                <li class="nav-item">
+
+                                    <a href="/Usuarios" class="nav-link">
+                                        <i class="nav-icon fas fa-user colorIconos"></i>
+                                        <p class="letrasAzules">
+                                            Usuarios
+                                        </p>
+                                    </a>
+                                </li>
+
+
+                                <li class="nav-item">
+
+                                    <a href="/Articulos" class="nav-link ">
+                                        <i class="nav-icon fas fa-clipboard-list colorIconos"></i>
+                                        <p class="letrasAzules">
+                                            Artículos
+                                        </p>
+                                    </a>
+                                </li>
+
+                                <li class="nav-item">
+
+                                    <a href="/ImagenesCarrusel" class="nav-link">
+                                        <i class="nav-icon fas fa-solid fa-image colorIconos"></i>
+                                        <p class="letrasAzules">
+                                            ABM Imagenes Carrusel
+                                        </p>
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+
+                                    <a href="/ImagenesAleatorias" class="nav-link">
+                                        <i class="nav-icon fas fa-solid fa-image colorIconos"></i>
+                                        <p class="letrasAzules">
+                                            ABM Imagenes Encabezado
+                                        </p>
+                                    </a>
+                                </li>
+
+                                <div class="dropdown-divider"></div>
+                            }
+
+                            @if (sesionUsuario.Permisos.Contains(Permisos.Pedidos))
+                            {
+
+                                @* PEDIDOS *@
+                                <li class="nav-header"><b>PEDIDOS</b></li>
+                                <li class="nav-header">&nbsp;&nbsp;&nbsp;<b>INGRESO DE PEDIDOS</b></li>
+
+                                <li class="nav-item">
+
+                                    <button class="nav-link" @onclick="ManejarIngresoPedido">
+                                        <i class="nav-icon fas fa-shopping-cart colorIconos"></i>
+                                        <p class="letrasAzules">
+                                            Ventas Normales
+                                        </p>
+                                    </button>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a href="/ComprasAnticipadasPendientes" class="nav-link">
+                                        <i class="nav-icon fas fa-box colorIconos"></i>
+
+                                        <p class="letrasAzules">
+                                            Ventas Anticipadas
+                                        </p>
+
+                                    </a>
+                                </li> 
+
+                                <li class="nav-header">&nbsp;&nbsp;&nbsp; <b>SEGUIMIENTO DE PEDIDOS</b></li>
+
+                                <li class="nav-item">
+                                    <a href="/SeguimientoPedidos" class="nav-link">
+                                        <i class="nav-icon fas fa-truck-moving colorIconos"></i>
+
+                                        <p class="letrasAzules">
+                                            Ventas Normales
+                                        </p>
+
+                                    </a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a href="/SeguimientoPedidosVentasAnticipadas" class="nav-link">
+                                        <i class="nav-icon fas fa-truck-moving colorIconos"></i>
+
+                                        <p class="letrasAzules">
+                                            Ventas Anticipadas
+                                        </p>
+
+                                    </a>
+                                </li>
+
+
+                                
+
+                                <div class="dropdown-divider"></div>
+                            }
+
+                            @if (sesionUsuario.Permisos.Contains(Permisos.FacturasYRemitos))
+                            {
+
+                                @* FACTURAS Y REMITOS *@
+                                <li class="nav-header"><b> FACTURAS Y REMITOS</b></li>
+
+                                <li class="nav-item">
+                                    <a href="/Facturas" class="nav-link">
+                                        <i class="nav-icon fas fa-file-invoice-dollar colorIconos"></i>
+                                        <p class="letrasAzules">
+                                            Facturas
+                                        </p>
+                                    </a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a href="/RemitosTabla" class="nav-link">
+                                        <i class="nav-icon fas fa-file-invoice-dollar colorIconos"></i>
+                                        <p class="letrasAzules">
+                                            Remitos
+                                        </p>
+                                    </a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a href="/Recibos" class="nav-link">
+                                        <i class="nav-icon fas fa-file-invoice-dollar colorIconos"></i>
+                                        <p class="letrasAzules">
+                                            Recibos
+                                        </p>
+                                    </a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a href="/CuentasCorrientes" class="nav-link">
+                                        <i class="nav-icon fas fa-file-invoice-dollar colorIconos"></i>
+                                        <p class="letrasAzules">
+                                            Cuenta Corriente
+                                        </p>
+                                    </a>
+                                </li>
+
+                                
+                            }
+
+                            @if (sesionUsuario.Permisos.Contains(Permisos.Estadisticas))
+                            {
+
+                                @* ESTADISTICAS *@
+                                <li class="nav-header"><b>ESTADÍSTICAS</b></li>
+
+                                <li class="nav-item">
+                                    <a href="/EstadisticaArticulos" class="nav-link">
+                                        <i class="nav-icon fas fa-chart-line colorIconos"></i>
+                                        @if (sesionUsuario.Rol == "Comercial")
+                                        {
+                                            <p class="letrasAzules">
+                                                Estadística de Ventas
+                                            </p>
+
+                                        }
+                                        else
+                                        {
+                                            <p class="letrasAzules">
+                                                Estadística de Compras
+                                            </p>
+                                        }
+                                    </a>
+                                </li>
+                            }
+
+                        </ul>
+                    </nav>
+                    <!-- /.sidebar-menu -->
+
+                </div>
+            </div>
+
+        </div>
+
+        <div class="os-scrollbar os-scrollbar-horizontal os-scrollbar-unusable os-scrollbar-auto-hidden">
+            <div class="os-scrollbar-track">
+                <div class="os-scrollbar-handle" style="width: 100%; transform: translate(0px, 0px);">
+                </div>
+            </div>
+        </div>
+
+        <div class="os-scrollbar os-scrollbar-vertical os-scrollbar os-scrollbar-auto-hidden">
+            <div class="os-scrollbar-track">
+                <div class="os-scrollbar-handle" style="height: 63.3554%; transform: translate(0px, 0px);">
+                </div>
+            </div>
+        </div>
+
+        <div class="os-scrollbar-corner"></div>
+
+    </div>
+    <!-- /.sidebar -->
+</aside>
+
+
+<!-- Modal -->
+<div class="modal fade" id="modalIngresoPedido" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="exampleModalLabel">Nuevo Pedido</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" @onclick="AlertaNuevoPedidoCerrar"></button>
+            </div>
+            <div class="modal-body">
+                @if (_carritoPedidos.IngresoPedidoVM.cliente != null)
+                {
+                    <p>
+                        Hay un pedido en proceso para @_carritoPedidos.IngresoPedidoVM.cliente.nombreUsuario, desea descartar el pedido actual e iniciar uno nuevo?
+                    </p>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @onclick="SeguirPedido">No</button>
+                <button type="button" class="btn btn-primary" @onclick="NuevoPedido">Si</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    public SesionUsuario sesionUsuario = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        sesionUsuario = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+    }
+
+    public async Task NuevoPedido()
+    {
+        await AlertaNuevoPedidoCerrar();
+        _carritoPedidos.IngresoPedidoVM = new();
+        navigation.NavigateTo("/IngresoPedidos");
+    }
+
+    public async Task AlertaNuevoPedido()
+    {
+        await js.InvokeVoidAsync("AlertaAbrir", "#modalIngresoPedido");
+    }
+
+    public async Task AlertaNuevoPedidoCerrar()
+    {
+        await js.InvokeVoidAsync("AlertaCerrar", "#modalIngresoPedido");
+    }
+
+    public async Task SeguirPedido()
+    {
+        await AlertaNuevoPedidoCerrar();
+        navigation.NavigateTo("/IngresoPedidos");
+    }
+
+    public async Task ManejarIngresoPedido()
+    {
+        if (_carritoPedidos.PedidoEnCurso)
+        {
+            await AlertaNuevoPedido();
+        }
+        else
+        {
+            navigation.NavigateTo("/IngresoPedidos");
+        }
+    }
+}
+
+<style>
+    .letrasBlancas {
+        color: white;
+    }
+
+    .letrasAzules {
+        color: #3C81C4
+    }
+
+    .colorIconos {
+        color: #41AD48;
+    }
+
+    .nav-header{
+        color:black;
+    }
+
+    .main-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 250px; /* ajustá al ancho real */
+        height: 100vh;
+        overflow: hidden;
+        z-index: 1030;
+        display: flex;
+        flex-direction: column;
+    }
+
+        /* cabecera y usuario visibles */
+        .main-sidebar .brand-link,
+        .main-sidebar .user-panel {
+            flex: 0 0 auto;
+        }
+
+        /* cuerpo scrollable */
+        .main-sidebar .sidebar {
+            flex: 1 1 auto;
+            overflow: hidden;
+        }
+
+            /* forzar que el contenido interno use scroll */
+            .main-sidebar .sidebar .os-viewport,
+            .main-sidebar .sidebar .os-content {
+                height: 100% !important;
+                overflow-y: auto !important;
+                overflow-x: hidden !important;
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+            }
+
+            /* restaurar visibilidad si OverlayScrollbars la ocultó */
+            .main-sidebar .sidebar .os-content-glue {
+                height: auto !important;
+            }
+
+            /* scrollbars personalizados */
+            .main-sidebar .sidebar .os-viewport::-webkit-scrollbar {
+                width: 8px;
+            }
+
+            .main-sidebar .sidebar .os-viewport::-webkit-scrollbar-track {
+                background: #f0f0f0;
+            }
+
+            .main-sidebar .sidebar .os-viewport::-webkit-scrollbar-thumb {
+                background: #999;
+                border-radius: 4px;
+            }
+
+                .main-sidebar .sidebar .os-viewport::-webkit-scrollbar-thumb:hover {
+                    background: #666;
+                }
+</style>
+

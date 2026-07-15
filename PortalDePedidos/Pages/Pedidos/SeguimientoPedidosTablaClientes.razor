@@ -1,0 +1,125 @@
+﻿@page "/SeguimientoPedidosTablaClientes"
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@using PortalDePedidosShared.SeguimientoPedidosVM
+@using PortalDePedidosShared.UsuariosVM
+@using Blazorise.DataGrid
+@using Blazorise
+@using Blazored.SessionStorage
+@using PortalDePedidos.Extensiones
+@using Microsoft.AspNetCore.Authorization
+@inject IJSRuntime JSRuntime
+@inject ISessionStorageService _sessionStorageService;
+@* @attribute [Authorize(Roles = "Comercial")] *@
+@inject UsuarioClienteService _usuarioService
+@inject NavigationManager navigation
+@inject SeguimientoPedidosContainer _seguimientoPedidosContainer
+
+
+
+<div class="my-scrollbar-page">
+    <div class="card card-primary mt-2">
+
+        <div class="card-header">
+            <div class="card-title">Seleccione un cliente para ver sus seguimientos de pedidos </div>
+        </div>
+
+        <div class="card-body">
+
+            <div class="input-group">
+                <input class="form-control" type="search" placeholder="Buscar por nombre, nro de JDE o razon social" @bind="@buscar" @onkeyup="HandleKeyPress"></input>
+                <div class="input-group-append">
+                    <button class="btn btn-default" @onclick="Buscar">
+                        <i class="fas fa-search "></i>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="card card-primary">
+
+
+        <div class="card-body">
+
+
+            @if (espera)
+            {
+
+                <div style="display:flex;align-items:center;justify-content:center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+
+                <DataGrid TItem="UsuarioVM"
+                          Data="@usuariosTabla"
+                          PageSize="10000"
+                          SelectedRowChanged="ClienteSeleccionado"
+                          Class="table table-bordered table-striped ">
+
+                    <DataGridColumn Field="@nameof(UsuarioVM.nombreUsuario)" Caption="Nombre de Usuario" Editable="false"></DataGridColumn>
+                    <DataGridColumn Field="@nameof(UsuarioVM.nroUsuarioJDE)" Caption="Nro. Usuario en JDE" Editable="false"></DataGridColumn>
+                    <DataGridColumn Field="@nameof(UsuarioVM.razonSocial)" Caption="Razon Social" Editable="false"></DataGridColumn>
+                </DataGrid>
+            }
+        </div>
+    </div>
+</div>
+
+
+@code {
+    List<UsuarioVM> usuarios = new();
+    List<UsuarioVM> usuariosTabla = new();
+    FiltroUsuarios filtroUsuarios = new();
+    string buscar = "";
+    public bool espera = false;
+    public bool clienteSeleccionado = false;
+    SesionUsuario sesionUsuario = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        espera = true;
+        sesionUsuario = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+        if (sesionUsuario.Rol == "Comercial")
+        {
+            var msj = "¡Debe seleccionar un cliente antes de consultar sus seguimientos de pedido!";
+            await JSRuntime.InvokeVoidAsync("AlertaArticulo", msj);
+        }
+        if (sesionUsuario.Rol == "Cliente")
+        {
+            navigation.NavigateTo("/SeguimientoPedidos/");
+        }
+        usuarios = await _usuarioService.GetClientes();
+        usuariosTabla = usuarios;
+        espera = false;
+    }
+
+    public async Task Buscar()
+    {
+        espera = true;
+
+        var query = usuarios.AsQueryable();
+        query = query.Where(x => x.nombreUsuario.ToUpper().Contains(buscar.ToUpper()) || x.nroUsuarioJDE.Contains(buscar) || x.razonSocial.ToUpper().Contains(buscar.ToUpper()));
+        usuariosTabla = query.ToList();
+
+        espera = false;
+    }
+    public void ClienteSeleccionado(UsuarioVM usuarioVM)
+    {
+        _seguimientoPedidosContainer.cliente = usuarioVM;
+        navigation.NavigateTo("/SeguimientoPedidos/");
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            Buscar();
+        }
+    }
+}

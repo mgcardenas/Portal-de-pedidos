@@ -1,0 +1,247 @@
+﻿ @using Microsoft.AspNetCore.Authorization
+ @using Microsoft.AspNetCore.Components.Authorization
+ @using System.Security.Claims;
+ @using Blazored.SessionStorage;
+ @using PortalDePedidosModel;
+ @using PortalDePedidos;
+ @using PortalDePedidos.Extensiones;
+ @using System.Timers
+ @using PortalDePedidosShared.IngresoPedidosVM
+ @using PortalDePedidosShared.ImagenesAleatoriasVM
+ @using PortalDePedidosService
+@attribute [Authorize]
+@implements IDisposable
+@inject NavigationManager navigation
+@inject AuthenticationStateProvider autenticacionProvider
+@inject ISessionStorageService _sessionStorageService;
+@inject LogInClienteService _loginService
+@inject CarritoPedidosContainer _carritoPedidos
+@inject ImagenAleatoriaClienteService _imagenService
+@inject IJSRuntime js
+<!-- Navbar -->
+<nav class="main-header navbar navbar-expand navbar-white navbar-light" style="height: 80px;">
+    <!-- Left navbar links -->
+    <ul class="navbar-nav left">
+        <li class="nav-item">
+            @if(menuAbierto) {
+                <a class="nav-link" data-widget="pushmenu" href="#" role="button" @onclick="CambiarEstadoMenu"><i class="fas fa-arrow-left"></i></a>
+            } else {
+                <a class="nav-link" data-widget="pushmenu" href="#" role="button" @onclick="CambiarEstadoMenu"><i class="fas fa-arrow-right"></i></a>
+            }
+        </li>
+        <li class="nav-item">
+            <h5 class="nav-link">Hora = @hora</h5>
+        </li>
+    </ul>
+
+    <!-- Center navbar images -->
+    <ul class="navbar-nav center">
+        @foreach(var imagen in imagenVM) {
+            <li class="nav-item">
+                <img src="@($"data:image/png;base64,{imagen.Codigo}")" class="img-fluid navbar-image" />
+            </li>
+        }
+    </ul>
+
+    <!-- Right navbar links -->
+    <ul class="navbar-nav ml-auto right">
+        <li class="nav-item">
+            <p>Total: @Math.Round(_carritoPedidos.MaxTN(0,36),2) TN</p>
+        </li>
+
+
+        <li class="nav-item dropdown">
+            <a class="nav-link mb-3" data-bs-toggle="dropdown" href="/CarritoPedido">
+                <img src="/imagenes/logo/cart.png" width="30" height="30" data-bs-toggle="tooltip" title="Carrito de pedido" />
+                <span class="badge badge-success navbar-badge">@_carritoPedidos.IngresoPedidoVM.articulos.Count</span>
+            </a>
+            <div class="dropdown-menu dropdown-menu-xl dropdown-menu-end">
+                <span class="dropdown-item dropdown-header">Carrito de Pedido</span>
+                <div class="dropdown-divider"></div>
+
+                @foreach (var articulo in _carritoPedidos.IngresoPedidoVM.articulos)
+                {
+                    <div class="dropdown-item">
+                        <div class="row">
+                            <div class="col col-8" style="align-content:center">
+                                <p class="text text-xs">
+                                    @articulo.CodArticulo - @articulo.Descripcion
+                                </p>
+                            </div>
+
+                            <div class="col" style="align-content:center">
+                                <p class="text text-xs">
+                                    @articulo.Cantidad @articulo.UnidadDeMedida
+                                </p>
+                                @* <input class="form-control" type="number" @bind="@articulo.Cantidad" @oninput="@(e => CambiarCantidad(articulo, e))" /> *@
+                            </div>
+
+                            <div class="col col-1" style="align-content:center">
+                                <div class="btn btn-danger btn-xs" @onclick="@(() => _carritoPedidos.BorrarArticulo(articulo))" data-bs-toggle="tooltip" title="Eliminar artículo del carrito">
+                                    <i class="fas fa-trash fa-xs"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <span class="float-right text-muted text-sm"></span>
+                    </div>
+                    <div class="dropdown-divider"></div>
+                }
+
+                <a href="/CarritoPedido" class="dropdown-item dropdown-footer">Ver Pantalla Completa</a>
+            </div>
+        </li>
+
+        <li class="nav-item">
+            <a @onclick="CerrarSesion" class="nav-link"  role="button" data-bs-toggle="tooltip" title="Cerrar sesión">
+                <i class="fas fa-power-off"></i>
+            </a>
+        </li>
+    </ul>
+</nav>
+
+<style>
+    .main-header.navbar {
+        height: 100px; /* Aumenta la altura del navbar */
+        align-items: center; /* Centra los elementos verticalmente */
+    }
+
+    .navbar-image {
+        margin-right: 5px; /* Espacio entre imágenes */
+        height: 60px; /* Ajusta la altura de las imágenes para que se vean mejor */
+    }
+
+    .navbar-nav.right .nav-item {
+        display: flex;
+        align-items: center; /* Alinea los íconos al centro del navbar */
+    }
+</style>
+
+<!-- /.navbar -->
+@code {
+    string hora;
+    string fecha = DateTime.Now.ToLongDateString();
+    private Timer timer;
+    private SesionUsuario sesion;
+    private AutenticacionExtension autenticacionExt;
+    public double total = 0;
+    public bool menuAbierto = true;
+    public List<ImagenAleatoriaVM> imagenVM = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        //inicio timer para mostrar la hora
+        hora = DateTime.Now.ToString("HH:mm");
+        //hora = DateTime.Now.ToString("HH:mm:ss");
+        timer = new Timer();
+        timer.Interval = 1000;
+        timer.Elapsed += OnTimerElapsed;
+
+        timer.Enabled = true;
+        sesion = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+        if (sesion != null)
+        {
+            imagenVM = await _imagenService.Get(5);
+        }
+    }
+    // protected override async Task OnAfterRenderAsync(bool firstRender)
+    // {
+    //     if (firstRender)
+    //     {
+    //     }
+    // }
+    private async Task CerrarSesion()
+    {
+        await _sessionStorageService.GuargarStorage("UltimoUsuario", sesion.NombreUsuario);
+        var autenticacionExt = (AutenticacionExtension)autenticacionProvider;
+        await autenticacionExt.ActualizarEstadoAutenticacion(null);
+        await _loginService.Logout(sesion.Token);
+        navigation.NavigateTo("/");
+    }
+
+    public async Task ValidarExpiracion()
+    {
+        sesion = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+        if (sesion != null)
+        {
+            // Console.WriteLine($"Validando expiración: {DateTime.Now}, Expiración actual: {sesion?.Expiracion}");
+            var ahora = DateTime.Now;
+            if (ahora >= sesion.Expiracion)
+            {
+                autenticacionExt = (AutenticacionExtension)autenticacionProvider;
+                await autenticacionExt.ExpirarSesion();
+                var msj = "La sesion expiro, por favor vuelva a ingresar.";
+                await js.InvokeVoidAsync("AlertaFallo", msj);
+                navigation.NavigateTo("/");
+            }
+        }
+    }
+
+    private void OnTimerElapsed(object sender, ElapsedEventArgs e)
+    {
+        hora = DateTime.Now.ToString("HH:mm");
+        ValidarExpiracion();
+        InvokeAsync(() =>
+        {
+            StateHasChanged();
+        });
+    }
+
+    private void CambiarCantidad(ArticuloIngresoPedidoVM articulo, ChangeEventArgs e)
+    {
+        _carritoPedidos.CamboCantidad();
+    }
+
+    public void CambiarEstadoMenu()
+    {
+        menuAbierto = !menuAbierto;
+    }
+
+    public void Dispose()
+    {
+        timer.Dispose();
+    }
+    private async Task ActualizarExpiracion() {
+        try
+        {
+            Console.WriteLine("Usuario activo");
+            sesion.Expiracion = DateTime.Now.AddMinutes(30);
+            await _sessionStorageService.GuargarStorage("sesionUsuario",sesion);
+        }
+        catch(Exception ex) {
+            Console.WriteLine($"Error al actualizar expiración: {ex.Message}");
+        }
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await js.InvokeVoidAsync("iniciarDeteccionActividad", DotNetObjectReference.Create(this));
+        }
+    }
+
+    [JSInvokable]
+    public async Task UsuarioActivo()
+    {
+        await ActualizarExpiracion();
+    }
+}
+
+<script>
+    function iniciarDeteccionActividad(dotNetHelper) {
+        let timeout;
+
+        function resetTimeout() {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                dotNetHelper.invokeMethodAsync('UsuarioActivo');
+            }, 30000); // 30 minutos de inactividad para fines de demostración
+        }
+
+        document.addEventListener('mousemove', resetTimeout);
+        document.addEventListener('click', resetTimeout);
+        document.addEventListener('keydown', resetTimeout);
+
+        resetTimeout(); // Inicializa el timeout
+    }
+</script>

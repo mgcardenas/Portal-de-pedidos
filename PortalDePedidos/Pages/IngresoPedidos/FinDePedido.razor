@@ -1,0 +1,205 @@
+﻿@page "/FinDePedido"
+ @using Microsoft.AspNetCore.Authorization
+ @using System.Security.Claims;
+ @using Blazored.SessionStorage;
+ @using PortalDePedidosModel;
+ @using PortalDePedidos;
+@using PortalDePedidosService
+@using PortalDePedidosShared.AuditoriasVM
+@using PortalDePedidosShared.DataWhereHouse
+ @using PortalDePedidosShared.UsuariosVM;
+ @using PortalDePedidosShared.IngresoPedidosVM;
+ @using PortalDePedidos.Extensiones;
+ @using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize]
+@inject ISessionStorageService _sessionStorageService
+@inject IJSRuntime js
+@inject PdfClienteService _pdfService
+@inject CarritoPedidosContainer _carritoPedidos
+@inject UsuarioClienteService _usuarioService
+@inject IngresoPedidoClienteService _ingresoPedidoService
+@inject NavigationManager navigation
+@inject AuditoriaClienteService _auditoriaService
+@inject AppSettings _appSettings
+
+<div class="my-scrollbar-page">
+    <div class="card card-primary mt-2">
+
+        <div class="card-header">
+            
+            <h3 class="card-title">Fin de pedido</h3>
+            
+        </div>
+
+        <div class="card-body">
+            <button class="btn btn-primary" @onclick="ExportToPdf">Exportar a PDF</button>
+            <div id="infoPedido" class="container">
+                <div class="row">
+                    <!-- Logo -->
+                    <div class="col">
+                        <img src="data:image/png;base64,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" alt="Logo de PCR" width="150" style="display: block; margin: 0 auto;">
+                    </div>
+                    <!-- Fecha y hora -->
+                    <div class="col" style="text-align: right; font-family: Arial, sans-serif; font-size: 14px; color: #555;">
+                        <p style="margin: 0;"><strong>@time</strong></p>
+                    </div>
+
+                </div>
+                <div class="row" style="text-align:center">
+                    <h3>Se realizo correctamente el pedido </h3>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <p class="card-text">Cliente: @_carritoPedidos.InformacionFinalPedido.cliente.razonSocial</p>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col">
+                        <p class="card-text">Retiro: @RetiroManager.GetDescripcion(_carritoPedidos.retiroEn)</p>
+                    </div>
+                </div>
+
+
+
+                @if (_carritoPedidos.InformacionFinalPedido.cantidadPalletRetornables > 0)
+                {
+                    <div class="row">
+                        <div class="col">
+                            <p class="card-text">Pallets retornables: @_carritoPedidos.InformacionFinalPedido.cantidadPalletRetornables</p>
+                        </div>
+                    </div>
+                }
+
+                <div class="row">
+                    <div class="col-2">
+                        <p class="card-text">Artículos en el pedido:</p>
+                    </div>
+                    <div class="col-10"></div>
+                </div>
+
+                <div class="row mt-3" style="text-align:center">
+                    
+                    <table style="width: 100%;
+                                max-width: 100%;
+                                margin-bottom: 1rem;
+                                background-color: transparent;
+                                border-collapse: collapse;
+                                border: 1px solid #dee2e6;">
+
+                        <thead>
+                            <tr>
+                                <th style="border: 1px solid #dee2e6;">Código</th>
+                                <th style="border: 1px solid #dee2e6;">Descripción</th>
+                                <th style="border: 1px solid #dee2e6;">Cantidad</th>
+                                <th style="border: 1px solid #dee2e6;">Unidades</th>
+                                <th style="border: 1px solid #dee2e6;">Peso</th>
+                            </tr>
+                        </thead>
+                        <tbody style="border-top: 2px solid #dee2e6;">
+                            @foreach (var item in _carritoPedidos.InformacionFinalPedido.articulos)
+                            {
+                                <tr>
+                                    <td style="border: 1px solid #dee2e6;">@item.CodArticulo</td>
+                                    <td style="border: 1px solid #dee2e6;">@item.Descripcion</td>
+                                    <td style="border: 1px solid #dee2e6;">@item.Cantidad @item.UnidadDeMedida</td>
+                                    <td style="border: 1px solid #dee2e6;">@item.unidadesTotales</td>
+                                    <td style="border: 1px solid #dee2e6;">@Math.Round(item.CalcularTN(), 2) TN</td>
+                                </tr>
+                            }
+
+
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="row">
+                    <div class="col-2">
+                        <p class="card-text">Pedidos similares:</p>
+                    </div>
+                    <div class="col-10"></div>
+                </div>
+
+                <div class="row mt-3" style="text-align:center">
+
+                    <table style="width: 100%;
+                                max-width: 100%;
+                                margin-bottom: 1rem;
+                                background-color: transparent;
+                                border-collapse: collapse;
+                                border: 1px solid #dee2e6;">
+
+                        <thead>
+                            <tr>
+                                <th style="border: 1px solid #dee2e6;">Nro. de pedido</th>
+                                <th style="border: 1px solid #dee2e6;">Fecha de entrega</th>
+                                <th style="border: 1px solid #dee2e6;">Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody style="border-top: 2px solid #dee2e6;">
+                            @foreach (var item in _carritoPedidos.InformacionFinalPedido.pedidos)
+                            {
+                                <tr>
+                                    <td style="border: 1px solid #dee2e6;">@item.IdPedido</td>
+                                    <td style="border: 1px solid #dee2e6;">@item.fechaDeEntrega.ToString("dd/MM/yyyy")</td>
+                                    <td style="border: 1px solid #dee2e6;">@item.observaciones</td>
+                                </tr>
+                            }
+
+
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="row">
+                    <div class="col-2">
+                        <p class="card-text">Peso Total: @Math.Round(_carritoPedidos.InformacionFinalPedido.pesoTotal, 2) TN</p>
+                    </div>
+                    <div class="col-10"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@code {
+    private string time;
+
+    protected override async Task OnInitializedAsync() {
+        // Establece la fecha y hora actual
+        time = DateTime.Now.ToString("dd/MM/yyyy HH:mm") ?? "Fecha no disponible";
+    }
+
+    private async Task ExportToPdf() {
+        // Obtiene el contenido HTML de la vista previa
+        var infoHtml = await js.InvokeAsync<string>("getInfoHtml","#infoPedido");
+
+        try {
+            // Generar el PDF con el HTML procesado
+            var pdfBytes = await _pdfService.GetPdfByte(infoHtml);
+            var base64 = Convert.ToBase64String(pdfBytes);
+            var fileName = $"Pedido_{_carritoPedidos.InformacionFinalPedido.idPedido}.pdf";
+
+            // Descargar el PDF generado
+            await js.InvokeVoidAsync("BlazorDownloadFile",fileName,base64);
+        } catch(Exception ex) {
+            Console.WriteLine($"Error al exportar a PDF: {ex.Message}");
+        }
+    }
+}
+
+<script>
+    function BlazorDownloadFile(filename, bytesBase64) {
+        var link = document.createElement('a');
+        link.download = filename;
+        link.href = "data:application/octet-stream;base64," + bytesBase64;
+        document.body.appendChild(link); // Needed for Firefox
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function getInfoHtml(selector) {
+        return document.querySelector(selector).outerHTML;
+    }
+</script>

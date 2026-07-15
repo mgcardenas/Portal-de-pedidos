@@ -1,0 +1,238 @@
+﻿@page "/SeguimientoPedidos"
+@using PortalDePedidosModel
+@using PortalDePedidosService
+@using PortalDePedidosShared.SeguimientoPedidosVM
+@using PortalDePedidosShared.UsuariosVM
+@using Blazorise.DataGrid
+@using Blazorise
+@using Blazored.SessionStorage
+@using PortalDePedidos.Extensiones
+@using ClosedXML.Excel
+@inject DataWareHouseClienteService _dataWarehouseService
+@inject UsuarioClienteService _usuarioService
+@inject IJSRuntime JSRuntime
+@inject ExcelService _excelService
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@inject ISessionStorageService _sessionStorageService;
+@inject SeguimientoPedidosContainer _seguimientoPedidosContainer
+@inject NavigationManager navigation
+
+<div class="my-scrollbar-page">
+<div class="card card-primary mt-2">
+    <div class="card-header">
+        @if (_seguimientoPedidosContainer?.cliente != null && sesionUsuario.Rol == "Comercial")
+        {
+            <h3 class="card-title">Seguimiento de pedidos de cliente: @_seguimientoPedidosContainer.cliente.nombreUsuario</h3>
+        }
+        else if (sesionUsuario != null && sesionUsuario.Rol != "Comercial")
+        {
+            <h3 class="card-title">Seguimiento de pedidos de cliente: @sesionUsuario.NombreUsuario</h3>
+        }
+    </div>
+
+    <div class="card-body">
+        <EditForm Model="filtro" OnInvalidSubmit="Buscar">
+
+            <div class="input-group row">
+                <label class="col-1">Fecha Desde: </label>
+                <div class="col-2">
+                    <InputDate class="form-control" @bind-Value="@filtro.FechaDesde" disabled="@espera"></InputDate>
+                    <ValidationMessage For="(()=> filtro.FechaDesde)" />
+                </div>
+
+                <label class="col-1">Fecha Hasta: </label>
+                <div class="col-2">
+                    <InputDate class="form-control" @bind-Value="@filtro.FechaHasta" disabled="@espera"></InputDate>
+                    <ValidationMessage For="(()=> filtro.FechaHasta)" />
+                </div>
+                <label class="col-1">Estado: </label>
+                <div class="col-2">
+                    <InputSelect class="form-control" @bind-Value="@filtro.Estado" disabled="@espera">
+                        <option value="0">Seleccione un estado</option>
+                            @foreach(var estado in estadosPedido)
+                            {
+                                <option value="@estado">@estado</option>
+                            }
+                    </InputSelect>
+                    <ValidationMessage For="(()=> filtro.Estado)" />
+                </div>
+            </div>
+
+            <div class="input-group row mt-2">
+                <label class="col-1">Cliente: </label>
+                <div class="col-2">
+                    <InputSelect class="form-control" @bind-Value="@filtro.CodCliente" disabled>
+                        @if (sesionUsuario?.Rol != "Comercial")
+                        {
+                            <option value="@sesionUsuario?.NroUsuarioJDE">@sesionUsuario?.NroUsuarioJDE - @sesionUsuario?.NombreUsuario</option>
+                        }
+                        else if (_seguimientoPedidosContainer?.cliente != null)
+                        {
+                            <option value="@_seguimientoPedidosContainer.cliente.nroUsuarioJDE">@_seguimientoPedidosContainer.cliente.nroUsuarioJDE - @_seguimientoPedidosContainer.cliente.nombreUsuario</option>
+                        }
+                    </InputSelect>
+
+                    <ValidationMessage For="(()=> filtro.CodCliente)" />
+                </div>
+
+
+                <div class="input-group-append col-1">
+                    <button class="btn" @onclick="Buscar">
+                        <i class="fas fa-search fa-fw"></i>
+                    </button>
+                </div>
+                <div class="col-3"></div>
+                @if (sesionUsuario.Rol == "Comercial")
+                {
+                    <div class="input-group-append col-2">
+                        <button class="btn btn-primary" @onclick="Recargar">
+                            <i class="fas fa-user"></i> Consultar otro cliente
+                        </button>
+                    </div>
+                }
+            </div>
+        </EditForm>
+    </div>
+
+</div>
+
+
+    @* Informacion importante *@
+    <div id="alerta" class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-info-circle " style="color:whitesmoke"></i>
+        Estos registros se actualizan cada tres horas. Si aún no ve alistada su orden, reintente más tarde.
+        <button type="button" class="close" data-bs-dismiss="alert" aria-label="Close">
+            <span style="color:white">&times;</span>
+        </button>
+    </div>
+
+<div class="card">
+    <div class="card-body">
+        @if (espera)
+        {
+
+            <div style="display:flex;align-items:center;justify-content:center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+            </div>
+        }
+        else
+        {
+            <a class="col col-1" type="Button" @onclick="GenerarExcel">
+                <Tooltip Text="Exportar Excel" Placement="TooltipPlacement.Top">
+                    <i class="fas fa-file-excel"></i> Excel
+                </Tooltip>
+            </a>
+            <DataGrid TItem="SeguimientoPedidoVM"
+                      Data="@seguimientoPedidos"
+                      PageSize="10000"
+                      Responsive
+                      Class="table table-bordered table-striped">
+                <DataGridColumn Field="@nameof(SeguimientoPedidoVM.Fecha_orden)" Caption="Fecha de orden" Editable="false"></DataGridColumn>
+                @* <DataGridColumn Field="@nameof(SeguimientoPedidoVM.CodCliente)" Caption="Código de cliente" Editable="false"></DataGridColumn> *@
+                @* <DataGridColumn Field="@nameof(SeguimientoPedidoVM.TipoDoc)" Caption="Tipo de documento" Editable="false"></DataGridColumn> *@
+                <DataGridColumn Field="@nameof(SeguimientoPedidoVM.Nro_doc)" Caption="Número de documento" Editable="false"></DataGridColumn>
+                <DataGridColumn Field="@nameof(SeguimientoPedidoVM.CodArticulo)" Caption="Código de artículo" Editable="false"></DataGridColumn>
+                <DataGridColumn Field="@nameof(SeguimientoPedidoVM.Cant_enviada)" Caption="Cantidad enviada" Editable="false"></DataGridColumn>
+                <DataGridColumn Field="@nameof(SeguimientoPedidoVM.CodTransportista)" Caption="Código de transportista" Editable="false"></DataGridColumn>
+                <DataGridColumn Field="@nameof(SeguimientoPedidoVM.Transportista)" Caption="Transportista" Editable="false"></DataGridColumn>
+                <DataGridColumn Field="@nameof(SeguimientoPedidoVM.Estado)" Caption="Estado" Editable="false"></DataGridColumn>
+                <DataGridColumn Field="@nameof(SeguimientoPedidoVM.Nro_doc_edi)" Caption="Nro Doc EDI" Editable="false"></DataGridColumn>
+                <DataGridColumn Field="@nameof(SeguimientoPedidoVM.Nro_remito)" Caption="Nro de remito" Editable="false"></DataGridColumn>
+                <DataGridColumn Field="@nameof(SeguimientoPedidoVM.Fecha_entrega)" Caption="Fecha de entrega" Editable="false"></DataGridColumn>
+
+            </DataGrid>
+        }
+    </div>
+</div>
+</div>
+
+@code {
+    List<SeguimientoPedidoVM> seguimientoPedidos = new();
+    List<UsuarioVM> clientes = new();
+    List<string> estadosPedido = new();
+    FiltroSeguimientoPedidos filtro = new();
+    public bool espera = false;
+    SesionUsuario sesionUsuario = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        sesionUsuario = await _sessionStorageService.ObtenerStorage<SesionUsuario>("sesionUsuario");
+        if (sesionUsuario == null)
+        {
+            await JSRuntime.InvokeVoidAsync("AlertaArticulo", "Error: Usuario no encontrado.");
+            return;
+        }
+
+        if (_seguimientoPedidosContainer.cliente == null && sesionUsuario.Rol == "Comercial")
+        {
+            var msj = "¡Debe seleccionar un cliente antes de consultar sus seguimientos de pedido!";
+            await JSRuntime.InvokeVoidAsync("AlertaArticulo", msj);
+            navigation.NavigateTo("/SeguimientoPedidosTablaClientes");
+            return;
+        }
+
+
+        espera = true;
+        clientes = (await _usuarioService.GetClientes()).OrderByDescending(x => x.nroUsuarioJDE).ToList();
+
+        if (sesionUsuario.Rol != "Comercial")
+        {
+            filtro.CodCliente = int.Parse(sesionUsuario.NroUsuarioJDE);
+        }
+        else if (_seguimientoPedidosContainer.cliente != null)
+        {
+            filtro.CodCliente = int.Parse(_seguimientoPedidosContainer.cliente.nroUsuarioJDE);
+        }
+
+        estadosPedido = await _dataWarehouseService.GetEstadosPedido();
+        seguimientoPedidos = (await _dataWarehouseService.GetSeguimientoPedido(filtro)).ToList();
+        espera = false;
+    }
+
+
+
+    public async Task Buscar()
+    {
+        espera = true;
+        if (sesionUsuario.Rol != "Comercial")
+        {
+            filtro.CodCliente = int.Parse(sesionUsuario.NroUsuarioJDE);
+        }
+        seguimientoPedidos = await _dataWarehouseService.GetSeguimientoPedido(filtro);
+        espera = false;
+    }
+    private async Task downloadFile(string fileName, string filePath)
+    {
+        var element = await JSRuntime.InvokeAsync<IJSObjectReference>("BlazorDownloadFile", "a");
+        await element.InvokeVoidAsync("setAttribute", "href", filePath);
+        await element.InvokeVoidAsync("setAttribute", "download", fileName);
+        await element.InvokeVoidAsync("click");
+        await element.InvokeVoidAsync("dispose");
+    }
+
+    private async Task Recargar()
+    {
+        _seguimientoPedidosContainer.cliente = null;
+        navigation.NavigateTo("/SeguimientoPedidosTablaClientes");
+    }
+
+    private async Task GenerarExcel()
+    {
+        await _excelService.exportExcelSeguimientoPedidos(seguimientoPedidos, filtro, JSRuntime, _seguimientoPedidosContainer.cliente);
+    }
+}
+
+<script>
+    function BlazorDownloadFile(filename, bytesBase64) {
+        var link = document.createElement('a');
+        link.download = filename;
+        link.href = "data:application/octet-stream;base64," + bytesBase64;
+        document.body.appendChild(link); // Needed for Firefox
+        link.click();
+        document.body.removeChild(link);
+    }
+
+</script>

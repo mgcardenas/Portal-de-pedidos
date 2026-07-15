@@ -1,0 +1,40 @@
+﻿ @using Microsoft.AspNetCore.Authorization
+ @using Microsoft.AspNetCore.Components.Authorization
+ @using PortalDePedidos.Pages
+@using PortalDePedidosService
+ @inject NavigationManager navigation
+ @inject ErrorService errorService
+
+ <CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" >
+                <NotAuthorized>
+                    @{
+                        if (context.User.Identity?.IsAuthenticated != true)
+                            navigation.NavigateTo("/");
+                        else
+                        {
+                            <p class="alert alert-danger">No esta autorizado para ver esta página</p>
+                        }
+                    }
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            @* <FocusOnNavigate RouteData="@routeData" Selector="h1" /> *@
+        </Found>
+            
+        <NotFound>
+                <PageTitle>Not found</PageTitle>
+            <LayoutView Layout="@typeof(LogInLayout)">
+                @* <p role="alert">La página no existe.</p> 
+
+                *@
+                <Error ErrorCode="404"></Error>
+            </LayoutView> 
+
+            
+        </NotFound>
+            
+    </Router>
+ </CascadingAuthenticationState>

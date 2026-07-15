@@ -1,0 +1,14 @@
+﻿################################################################################
+# Este archivo .gitignore ha sido creado automáticamente por Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs
+/PortalDePedidosServidor/bin/Debug/net8.0
+/PortalDePedidosServidor/bin/Release/net8.0
+/PortalDePedidosServidor/obj
+/PortalDePedidosServidor/appsettings.json
+/Generate-AuditReport.ps1
+/Nuevo Documento de texto.txt
+/resultado prompt 1.txt
+/PortalDePedidos/bin/Debug/net8.0
+/PortalDePedidos/obj
