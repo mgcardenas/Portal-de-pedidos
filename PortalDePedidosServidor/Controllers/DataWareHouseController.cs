@@ -227,32 +227,15 @@ namespace PortalDePedidosServidor.Controllers
             return Ok(respuesta);
         }
 
-        [HttpGet("ArticulosIngresoViejo")]
+
+        [HttpGet("ArticulosIngreso")]
         [Authorize][ServiceFilter(typeof(BlacklistAuthorizationFilter))] 
         public async Task<IActionResult> GetArticulosIngreso()
         {
             Respuesta<List<ArticuloIngresoPedidoVM>> respuesta = new();
             try
             {
-                respuesta.Data =await _dataWhereHouseService.GetArticulosIngreso();
-                respuesta.Mensaje = respuesta.Data.Count().ToString();
-                respuesta.Exito = true;
-            }
-            catch (Exception ex)
-            {
-                _logService.WriteLogException(ex);
-                respuesta.Data = new();
-            }
-            return Ok(respuesta);
-        }
-        [HttpGet("ArticulosIngreso")]
-        [Authorize][ServiceFilter(typeof(BlacklistAuthorizationFilter))] 
-        public async Task<IActionResult> GetArticulosIngresoOptimizado()
-        {
-            Respuesta<List<ArticuloIngresoPedidoVM>> respuesta = new();
-            try
-            {
-                respuesta.Data = await _dataWhereHouseService.GetArticulosIngresoOptimizado();
+                respuesta.Data = await _dataWhereHouseService.GetArticulosIngreso();
                 respuesta.Mensaje = respuesta.Data.Count().ToString();
                 respuesta.Exito = true;
             }

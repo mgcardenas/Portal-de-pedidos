@@ -105,6 +105,8 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 builder.Services.AddHttpClient();
+// Registrar memoria en cache para optimizaciones de rendimiento
+builder.Services.AddMemoryCache();
 //Servicios
 builder.Services.AddScoped<LogService>();
 builder.Services.AddScoped<MailService>();
@@ -132,22 +134,6 @@ builder.Services.AddScoped<LogInMFAService>();
 // Configurar rate limiting
 builder.Services.AddRateLimiter(options =>
 {
-    //options.AddFixedWindowLimiter("fixed", opt =>
-    //{
-    //    opt.PermitLimit = 3; // cantidad de requests
-    //    opt.Window = TimeSpan.FromSeconds(5); // ventana de tiempo
-    //    opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-    //    opt.QueueLimit = 0; // no se encolan requests
-    //});
-
-    //options.AddTokenBucketLimiter("token", opt =>
-    //{
-    //    opt.TokenLimit = 2;
-    //    opt.QueueLimit = 0;
-    //    opt.ReplenishmentPeriod = TimeSpan.FromSeconds(60);
-    //    opt.TokensPerPeriod = 5;
-    //    opt.AutoReplenishment = true;
-    //});
     options.AddPolicy("token", context =>
      {
          // Usar IP o usuario logueado

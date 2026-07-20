@@ -382,15 +382,16 @@
         {
             _carritoPedidos.IngresoPedidoVM.idUsuario = sesionUsuario.Id;
 
-            if(_carritoPedidos.articulosTodos.Count > 0)
-            {
-                articulos = _carritoPedidos.articulosTodos;
-            }
-            else
-            {
-                articulos = (await _dataWareHouseService.GetArticulosIngreso()).OrderBy(x=> x.CodArticulo).ToList();
-                _carritoPedidos.articulosTodos = articulos;
-            }
+            // if(_carritoPedidos.articulosTodos.Count > 0)
+            // {
+            //     articulos = _carritoPedidos.articulosTodos;
+            // }
+            // else
+            // {
+            //     articulos = (await _dataWareHouseService.GetArticulosIngreso()).OrderBy(x=> x.CodArticulo).ToList();
+            //     _carritoPedidos.articulosTodos = articulos;
+            // }
+            articulos = (await _dataWareHouseService.GetArticulosIngreso()).ToList();
         }
 
         //llenar tabla de articulo de ingreso pedidos

@@ -109,7 +109,7 @@ using (var scope = host.Services.CreateScope())
     {
         //var msj = "Si la App no carga se recomienda borrar el cache.";
         //await js.InvokeVoidAsync("AlertaArticulo", msj);
-        await js.InvokeVoidAsync("versionManager.reload");
+        //await js.InvokeVoidAsync("versionManager.reload");
     }
 }
 await host.RunAsync();

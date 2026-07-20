@@ -25,6 +25,8 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using static Google.Cloud.RecaptchaEnterprise.V1.TransactionData.Types;
+using Microsoft.Extensions.Caching.Memory; // añadido
+using System;
 
 namespace PortalDePedidosServidor.Servicios
 {
@@ -32,14 +34,15 @@ namespace PortalDePedidosServidor.Servicios
     {
         private PortalClienteDataWherehouseContext _context;
         private PortalTestContext _localContext;
-        //public List<ArticuloIngresoPedidoVM> articuloIngreso;
+        private readonly IMemoryCache _cache; // añadido
 
-        public DataWareHouseService(PortalClienteDataWherehouseContext context, PortalTestContext localContext)
+        public DataWareHouseService(PortalClienteDataWherehouseContext context, PortalTestContext localContext, IMemoryCache cache)
         {
             _context = context;
             _localContext = localContext;
-            //articuloIngreso = GetArticulosIngreso();
+            _cache = cache;
         }
+
         private DateTime devolverDateTime(string x)
         {
             var fecha = x.Split('/');
@@ -274,41 +277,65 @@ namespace PortalDePedidosServidor.Servicios
             return list.OrderBy(x => x.Descripcion).ToList();
         }
 
+        // --- Mejora en GetArticulos(): evitar N+1 y usar AsNoTracking + cache ---
         public async Task<List<ArticuloVM>> GetArticulos()
         {
-            //var articulosDWH = await _context.VArticulosCementos.ToListAsync();
-            var articulosDWH = await _context.VArticulosCementos.ToListAsync();
-            List<ArticuloVM> articulosVM = new List<ArticuloVM>();
-
-            foreach (var item in articulosDWH)
+            return await _cache.GetOrCreateAsync("Articulos_All", async entry =>
             {
-                var artVM = new ArticuloVM();
-                artVM.CodArticulo = item.CodArticulo;
-                artVM.Descripcion = item.Descripcion1;
-                artVM.Categoria = ObtenerCategoria(item.GrupoArticulo);
-                if (item.SubCategoriaCemento != null)
-                    artVM.SubCategoria = item.SubCategoriaCemento;
-                Imagene? imagen = await _localContext.Imagenes.Where(x => x.IdArticulo == item.CodArticulo).FirstOrDefaultAsync();
-                if (imagen != null)
-                    artVM.Imagen = imagen.Codigo;
-                articulosVM.Add(artVM);
+                // TTL cache razonable; ajustar según frecuencia de cambios
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
 
-            }
-            return articulosVM.OrderBy(x => x.Categoria).ToList();
+                var articulosDWH = await _context.VArticulosCementos.AsNoTracking().ToListAsync();
+                var codigos = articulosDWH.Select(a => a.CodArticulo).Where(c=> !string.IsNullOrEmpty(c)).Distinct().ToList();
 
+                // Traer imágenes en un solo query para evitar N+1
+                var imagenes = await _localContext.Imagenes
+                    .AsNoTracking()
+                    .Where(i => codigos.Contains(i.IdArticulo))
+                    .ToListAsync();
+
+                var imagenDict = imagenes
+                    .GroupBy(i => i.IdArticulo)
+                    .ToDictionary(g => g.Key, g => g.First().Codigo);
+
+                var articulosVM = articulosDWH.Select(item => {
+                    var artVM = new ArticuloVM();
+                    artVM.CodArticulo = item.CodArticulo;
+                    artVM.Descripcion = item.Descripcion1;
+                    artVM.Categoria = ObtenerCategoria(item.GrupoArticulo);
+                    if (item.SubCategoriaCemento != null)
+                        artVM.SubCategoria = item.SubCategoriaCemento;
+                    if (imagenDict.TryGetValue(item.CodArticulo, out var img))
+                        artVM.Imagen = img;
+                    return artVM;
+                }).OrderBy(x => x.Categoria).ToList();
+
+                return articulosVM;
+            });
+        }
+
+        // --- Reusar la versión optimizada y cachearla ---
+        public async Task<List<ArticuloIngresoPedidoVM>> GetArticulosIngreso()
+        {
+            // Si la versión optimizada ya es la recomendada, la invocamos y cacheamos.
+            return await _cache.GetOrCreateAsync("ArticulosIngreso_All", async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+                var articulos = await GetArticulosIngresoOptimizado();
+                // Aseguramos ordenamiento consistente
+                return articulos.OrderBy(x => x.CodArticulo).ToList();
+            });
         }
 
         public async Task<List<ArticuloIngresoPedidoVM>> GetArticulosIngresoOptimizado()
         {
+            // (Se mantiene la implementación optimizada ya existente — no se cambia la lógica)
             // 1. Traigo todos los artículos
             var articulosDWH = await _localContext.ArticulosCementos.ToListAsync();
             var articulosGeneranPalletRetornable = await _localContext.ArticulosZonasConPalletRetornables.Where(x=> x.Zona == "CAM").ToListAsync();
 
             var codigosArticulos = articulosDWH.Select(a => a.CodArticulo).ToList();
             var codigosCortos = articulosDWH.Select(a => a.CodCortoArticulo).ToList();
-
-            // 2. Traigo todas las imágenes de una sola vez
-            //var imagenes = await _localContext.Imagenes.Where(x => codigosArticulos.Contains(x.IdArticulo)).ToListAsync();
 
             // 3. Traigo todas las conversiones de unidades de una sola vez
             var conversiones = await _localContext.ArticulosConversionesCompletas
@@ -368,163 +395,18 @@ namespace PortalDePedidosServidor.Servicios
                                 : new List<UnidadMedidaVM>(),
                     VisibleSoloComercial = item.BloqueoVenta == "NV",
                     Imagen = item.ImagenContenido,
-                    //imagenes.FirstOrDefault(i => i.IdArticulo == item.CodArticulo)?.Codigo,
                     esVigueta = item.GrupoArticulo == "VIG",
                     esArticuloUnico = item.UmPrincipal == "TN" && item.UmSecundaria == "TN",
                     RubrosExclusivos = rubrosPorArticulo.TryGetValue(item.CodArticulo, out var rubrosEx)
                                         ? rubrosEx
                                         : new List<RubrosExclusivosVM>(),
-                    //GeneraPalletRetornable = articulosGeneranPalletRetornable.Any(x=> x.CodArticulo == item.CodArticulo &&  x.Zona.Trim() == "ZZZ")
                 };
 
                 return artVM;
             })
-            //.OrderBy(x => x.Categoria)
             .ToList();
 
             return articulosVM;
-            
-        }
-        //public async Task<List<ArticuloIngresoPedidoVM>> GetArticulosIngreso()
-        //{
-        //    // 1. Traigo solo los campos necesarios de los artículos
-        //    var articulosDWH = await _context.VArticulosCementos.ToListAsync();
-
-        //    // Paso a HashSet para optimizar búsquedas en Contains
-        //    var codigosArticulos = articulosDWH.Select(a => a.CodArticulo).ToHashSet();
-        //    var codigosCortos = articulosDWH.Select(a => a.CodCortoArticulo).ToHashSet();
-
-        //    // 2. Consultas en paralelo
-        //    var taskImagenes = _localContext.Imagenes
-        //        .Where(x => codigosArticulos.Contains(x.IdArticulo))
-        //        .ToListAsync();
-
-        //    var taskConversiones = _context.ArticulosConversionesCompletas
-        //        .Where(x => codigosCortos.Contains((int)x.CodArticuloCorto))
-        //        .Select(x => new
-        //        {
-        //            x.CodArticuloCorto,
-        //            Unidad = new UnidadMedidaVM
-        //            {
-        //                FactorConversion = x.FactorConversion,
-        //                Umdestino = x.Umdestino,
-        //                Umorigen = x.Umorigen
-        //            }
-        //        })
-        //        .ToListAsync();
-
-        //    var taskRubros = _context.PcArticulosExclusivosPorRubros
-        //        .Where(x => codigosArticulos.Contains(x.CodArticulo))
-        //        .Select(x => new RubrosExclusivosVM
-        //        {
-        //            CodArticulo = x.CodArticulo.Trim(),
-        //            CodRubroCliente = x.CodRubroCliente.Trim()
-        //        })
-        //        .ToListAsync();
-
-        //    await Task.WhenAll(taskImagenes, taskConversiones, taskRubros);
-
-        //    var imagenes = await taskImagenes;
-        //    var conversiones = await taskConversiones;
-        //    var rubros = await taskRubros;
-
-        //    // 3. Indexo resultados para acceso O(1)
-        //    var imagenesPorArticulo = imagenes
-        //        .GroupBy(i => i.IdArticulo)
-        //        .ToDictionary(g => g.Key, g => g.First().Codigo);
-
-        //    var unidadesPorArticulo = conversiones
-        //        .GroupBy(c => c.CodArticuloCorto)
-        //        .ToDictionary(
-        //            g => g.Key,
-        //            g => g.Select(x => x.Unidad).ToList()
-        //        );
-
-        //    var rubrosPorArticulo = rubros
-        //        .GroupBy(r => r.CodArticulo)
-        //        .ToDictionary(
-        //            g => g.Key,
-        //            g => g.ToList()
-        //        );
-
-        //    // 4. Armo los ViewModels en memoria
-        //    var articulosVM = articulosDWH.Select(item =>
-        //    {
-        //        var artVM = new ArticuloIngresoPedidoVM
-        //        {
-        //            CodArticulo = item.CodArticulo,
-        //            CodCortoArticulo = item.CodCortoArticulo,
-        //            CodTipoArticulo = item.CodTipoArticulo,
-        //            CodTipoEnvase = item.CodTipoEnvase,
-        //            Descripcion = item.Descripcion1,
-        //            UnidadDeMedida = GetUnidadPrincipal(item),
-        //            Categoria = ObtenerCategoria(item.GrupoArticulo),
-        //            SubCategoria = item.SubCategoriaCemento ?? "",
-        //            CodPlanta = item.CodPlanta,
-        //            unidades = unidadesPorArticulo.TryGetValue(item.CodCortoArticulo, out var unidades)
-        //                        ? unidades
-        //                        : new List<UnidadMedidaVM>(),
-        //            VisibleSoloComercial = item.BloqueoVenta == "NV",
-        //            Imagen = imagenesPorArticulo.TryGetValue(item.CodArticulo, out var img) ? img : null,
-        //            esVigueta = item.GrupoArticulo == "VIG",
-        //            esArticuloUnico = item.UmPrincipal == "TN" && item.UmSecundaria == "TN",
-        //            RubrosExclusivos = rubrosPorArticulo.TryGetValue(item.CodArticulo, out var rubrosEx)
-        //                                ? rubrosEx
-        //                                : new List<RubrosExclusivosVM>()
-        //        };
-
-        //        return artVM;
-        //    })
-        //    .OrderBy(x => x.Categoria) // si se puede, llevar esto a SQL
-        //    .ToList();
-
-        //    return articulosVM;
-
-
-        //}
-
-        public async Task<List<ArticuloIngresoPedidoVM>> GetArticulosIngreso()
-        {
-
-            var articulosDWH = await _localContext.ArticulosCementos.ToListAsync();
-            //todos los articulos de la vista
-            List<ArticuloIngresoPedidoVM> articulosVM = new List<ArticuloIngresoPedidoVM>();
-
-            foreach (var item in articulosDWH)
-            {
-                var artVM = new ArticuloIngresoPedidoVM()
-                {
-                    CodArticulo = item.CodArticulo,
-                    CodCortoArticulo = item.CodCortoArticulo,
-                    CodTipoArticulo = item.CodTipoArticulo,
-                    CodTipoEnvase = item.CodTipoEnvase,
-                    Descripcion = item.Descripcion1,
-                    UnidadDeMedida = GetUnidadPrincipal(item),
-                    Categoria = ObtenerCategoria(item.GrupoArticulo),
-                    SubCategoria = "",
-                    CodPlanta = item.CodPlanta,
-                    unidades = await GetUnidadesYConversiones(item.CodCortoArticulo),
-                    VisibleSoloComercial = item.BloqueoVenta == "NV"
-                };
-
-                if (item.SubCategoriaCemento != null)
-                    artVM.SubCategoria = item.SubCategoriaCemento;
-
-                Imagene? imagen = await _localContext.Imagenes.Where(x => x.IdArticulo == item.CodArticulo).FirstOrDefaultAsync();
-                if (imagen != null)
-                    artVM.Imagen = imagen.Codigo;
-
-                artVM.esVigueta = item.GrupoArticulo == "VIG";
-                artVM.esArticuloUnico = item.UmPrincipal == "TN" && item.UmSecundaria == "TN";
-
-                //Verifico si tiene rubros exclusivos
-                artVM.RubrosExclusivos = GetRubrosExclusivos(artVM.CodArticulo);
-
-                articulosVM.Add(artVM);
-
-
-            }
-            return articulosVM.OrderBy(x => x.Categoria).ToList();
         }
 
         public List<RubrosExclusivosVM> GetRubrosExclusivos(string codArticulo)
@@ -554,7 +436,6 @@ namespace PortalDePedidosServidor.Servicios
                     Categoria = ObtenerCategoria(articuloDWH.GrupoArticulo),
                     SubCategoria = "",
                     CodPlanta = articuloDWH.CodPlanta,
-                    //unidades = await GetUnidadesYConversiones(item.CodCortoArticulo)
                 };
 
                 if (articuloDWH.SubCategoriaCemento != null)
